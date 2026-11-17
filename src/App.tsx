@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 
 type IconName =
   | "home"
@@ -881,33 +881,41 @@ function StatCard({
   );
 }
 
-function BookingCountdown({ hours }: { hours: number }) {
-  const [seconds, setSeconds] = useState(hours * 3600 + 24 * 60);
-  useEffect(() => {
-    const timer = window.setInterval(() => setSeconds((value) => Math.max(0, value - 60)), 60000);
-    return () => window.clearInterval(timer);
-  }, []);
-  const days = Math.floor(seconds / 86400);
-  const currentHours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+function BookingCountdown({ seconds }: { seconds: number }) {
+  const parts: Array<[number, string]> = [
+    [Math.floor(seconds / 86400), "дн"],
+    [Math.floor((seconds % 86400) / 3600), "ч"],
+    [Math.floor((seconds % 3600) / 60), "мин"],
+    [seconds % 60, "сек"],
+  ];
   return (
-    <div className="booking-countdown">
-      <div>
-        <strong>{String(days).padStart(2, "0")}</strong>
-        <span>дней</span>
-      </div>
-      <i>:</i>
-      <div>
-        <strong>{String(currentHours).padStart(2, "0")}</strong>
-        <span>часов</span>
-      </div>
-      <i>:</i>
-      <div>
-        <strong>{String(minutes).padStart(2, "0")}</strong>
-        <span>мин</span>
-      </div>
+    <div className="booking-countdown clock">
+      {parts.map(([value, label], index) => (
+        <Fragment key={label}>
+          {index > 0 && <i>:</i>}
+          <div>
+            <strong>
+              {String(value)
+                .padStart(2, "0")
+                .split("")
+                .map((digit, digitIndex) => (
+                  <b key={digitIndex}>{digit}</b>
+                ))}
+            </strong>
+            <span>{label}</span>
+          </div>
+        </Fragment>
+      ))}
     </div>
   );
+}
+
+function endingNote(seconds: number) {
+  const days = Math.floor(seconds / 86400);
+  if (seconds <= 0) return "Срок истёк";
+  if (days >= 2) return "Осталось 2 дня";
+  if (days === 1) return "Остался 1 день";
+  return "Меньше суток";
 }
 
 type RentalItem = {
@@ -928,13 +936,116 @@ type RentalItem = {
   deposit: string;
   progress: number;
   periodLabel: string;
+  cancelledManually?: boolean;
   urgent?: boolean;
 };
+
+/** Бэк не присылает отдельный статус «активная». Клиент выводит его сам. */
+function isActiveRental(rental: RentalItem) {
+  if (rental.cancelledManually) return false;
+  return rental.paymentStatus === "Оплачено" || rental.paymentStatus === "Частично";
+}
+
+function ActiveLease({
+  rental,
+  onRemind,
+  onExtend,
+  onPay,
+  onEdit,
+  onDelete,
+}: {
+  rental: RentalItem;
+  onRemind: () => void;
+  onExtend: () => void;
+  onPay: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const [seconds, setSeconds] = useState(rental.hours * 3600 + 24 * 60 + 18);
+  useEffect(() => {
+    const timer = window.setInterval(() => setSeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const ending = seconds <= 2 * 86400;
+
+  return (
+    <article className={`lease ${rental.tone} ${ending ? "ending" : ""}`}>
+      <div className="lease-top">
+        <span className="featured-rental-icon">
+          <Icon name={rental.icon} size={18} />
+        </span>
+        <div>
+          <h3>{rental.title}</h3>
+          <p>
+            {rental.type} · {rental.location}
+          </p>
+        </div>
+        <div className="lease-clock">
+          {ending && <em>{endingNote(seconds)}</em>}
+          <BookingCountdown seconds={seconds} />
+        </div>
+        <button className="rental-menu-button" onClick={onEdit} aria-label="Ещё">
+          <Icon name="more" size={18} />
+        </button>
+      </div>
+
+      <div className="lease-facts">
+        <span>
+          Стоимость <b>{rental.price}</b>
+        </span>
+        <span>
+          Оплачено <b>{rental.paid}</b>
+        </span>
+        <span>
+          Тариф <b>{rental.rate}</b>
+        </span>
+        <span>
+          Залог <b>{rental.deposit}</b>
+        </span>
+        <button
+          className={`payment-status-button ${rental.paymentStatus === "Не оплачено" ? "unpaid" : rental.paymentStatus === "Частично" ? "partial" : ""}`}
+          onClick={onPay}
+        >
+          <i />
+          {rental.paymentStatus}
+        </button>
+      </div>
+
+      <div className="lease-track">
+        <i>
+          <b style={{ width: `${rental.progress}%` }} />
+        </i>
+        <small>
+          {rental.periodLabel} · до {rental.end}
+        </small>
+      </div>
+
+      <div className="lease-actions">
+        <button onClick={onRemind}>
+          <Icon name="bell" size={14} /> Напомнить
+        </button>
+        <button onClick={onExtend}>
+          <Icon name="plus" size={14} /> Продлить
+        </button>
+        <button onClick={onPay}>
+          <Icon name="wallet" size={14} /> Оплата
+        </button>
+        <button onClick={onEdit}>
+          <Icon name="settings" size={14} /> Изменить
+        </button>
+        <button className="delete-rental-button" onClick={onDelete} aria-label={`Удалить ${rental.title}`}>
+          <Icon name="close" size={14} />
+        </button>
+      </div>
+    </article>
+  );
+}
 
 function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string) => void }) {
   const [reminderBooking, setReminderBooking] = useState<string | null>(null);
   const [reminderTime, setReminderTime] = useState("За 1 час");
   const [calendarView, setCalendarView] = useState("2 недели");
+  const [budgetSlice, setBudgetSlice] = useState<"all" | "paid" | "due" | "free">("all");
   const [rentals, setRentals] = useState<RentalItem[]>([
     {
       id: 1,
@@ -994,6 +1105,25 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
       progress: 12,
       periodLabel: "1 из 3 дней",
     },
+    {
+      id: 4,
+      title: "Автомобиль для Исландии",
+      type: "Транспорт",
+      icon: "car",
+      location: "Рейкьявик · сентябрь",
+      start: "2 сен · 10:00",
+      end: "14 сен · 10:00",
+      detail: "12 дней · 4 человека",
+      hours: 1900,
+      tone: "orange",
+      paymentStatus: "Не оплачено",
+      price: "75 000 ₽",
+      paid: "0 ₽",
+      rate: "от 61 400 ₽",
+      deposit: "Залог по тарифу",
+      progress: 0,
+      periodLabel: "План · 12 дней",
+    },
   ]);
   const [editingRental, setEditingRental] = useState<RentalItem | null>(null);
   const [deletingRental, setDeletingRental] = useState<RentalItem | null>(null);
@@ -1029,15 +1159,22 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
 
   function savePayment() {
     if (!paymentRental) return;
-    setRentals((current) =>
-      current.map((rental) =>
-        rental.id === paymentRental.id
-          ? { ...rental, paymentStatus, paid: paymentAmount || "0 ₽" }
-          : rental,
-      ),
-    );
+    const next = { ...paymentRental, paymentStatus, paid: paymentAmount || "0 ₽" };
+    const wasActive = isActiveRental(paymentRental);
+    const nowActive = isActiveRental(next);
+    setRentals((current) => current.map((rental) => (rental.id === next.id ? next : rental)));
     setPaymentRental(null);
-    toast("Статус оплаты обновлён");
+    if (!wasActive && nowActive) toast("Оплата есть — аренда перешла в активные");
+    else if (wasActive && !nowActive) toast("Оплаты нет — аренда снова в плане");
+    else toast("Статус оплаты обновлён");
+  }
+
+  function cancelRental(rental: RentalItem) {
+    setRentals((current) =>
+      current.map((item) => (item.id === rental.id ? { ...item, cancelledManually: true } : item)),
+    );
+    setDeletingRental(null);
+    toast("Аренда отменена вручную и не станет активной");
   }
 
   function saveRental() {
@@ -1073,6 +1210,14 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
     window.setTimeout(() => setPlannedAiLoading(false), 1200);
   }
 
+  const activeRentals = rentals.filter(isActiveRental);
+  const plannedRentals = rentals.filter(
+    (rental) => !rental.cancelledManually && !isActiveRental(rental),
+  );
+  const endingSoon = activeRentals.filter((rental) => rental.hours <= 48);
+  const soonestRental = [...activeRentals].sort((left, right) => left.hours - right.hours)[0];
+  const soonestDate = soonestRental?.end.split(" · ")[0] ?? "—";
+
   return (
     <div className="section-page bookings-page">
       <PageTitle
@@ -1093,29 +1238,29 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
       <div className="stats-row">
         <StatCard
           label="Активные аренды"
-          value={String(rentals.length)}
-          note="Одна завершится завтра"
+          value={String(activeRentals.length)}
+          note={activeRentals.length ? "Оплачены и не отменены" : "Пока нет оплаченных"}
           icon="calendar"
         />
         <StatCard
-          label="Закончится скоро"
-          value="1 день"
-          note="Lisboa Bikes · завтра"
-          icon="clock"
-          tone="blue"
-        />
-        <StatCard
-          label="Бюджет аренды"
+          label="Бюджет на аренду"
           value="240 000 ₽"
-          note="72% уже распределено"
+          note="Общий лимит · свободно 67 200 ₽"
           icon="wallet"
           tone="orange"
         />
         <StatCard
-          label="Расходы в июне"
-          value="112 400 ₽"
-          note="На 9% ниже плана"
-          icon="check"
+          label="Закончится скоро"
+          value={String(endingSoon.length)}
+          note={endingSoon.length ? "В ближайшие 2 дня" : "В ближайшие 2 дня нет"}
+          icon="clock"
+          tone="blue"
+        />
+        <StatCard
+          label="Ближайшее окончание"
+          value={soonestDate}
+          note={soonestRental ? soonestRental.title : "Нет активных аренд"}
+          icon="calendar"
           tone="purple"
         />
       </div>
@@ -1124,110 +1269,27 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
         <div className="workspace-head">
           <div>
             <h3>Активные аренды</h3>
-            <span className="overline">СРОКИ, СТОИМОСТЬ И ВОЗВРАТ</span>
+            <span className="overline">ОПЛАЧЕНЫ И НЕ ОТМЕНЕНЫ</span>
           </div>
           <button className="plain-button" onClick={() => toast("Архив бронирований открыт")}>
             Архив аренды <Icon name="chevron" size={15} />
           </button>
         </div>
         <div className="rental-contracts-list">
-          {rentals.map((rental) => (
-            <article className={`rental-contract-card ${rental.tone}`} key={rental.id}>
-              <div className="rental-contract-head">
-                <span className="featured-rental-icon">
-                  <Icon name={rental.icon} size={22} />
-                </span>
-                <div>
-                  <span>
-                    {rental.type} · {rental.location}
-                  </span>
-                  <h3>{rental.title}</h3>
-                  <small>{rental.detail}</small>
-                </div>
-                {rental.urgent && <span className="rental-urgent">Скоро возврат</span>}
-                <button
-                  className={`payment-status-button ${rental.paymentStatus === "Не оплачено" ? "unpaid" : rental.paymentStatus === "Частично" ? "partial" : ""}`}
-                  onClick={() => openPayment(rental)}
-                >
-                  <i />
-                  {rental.paymentStatus}
-                  <Icon name="chevron" size={13} />
-                </button>
-                <button className="rental-menu-button" onClick={() => setEditingRental(rental)}>
-                  <Icon name="more" size={18} />
-                </button>
-              </div>
-
-              <div className="rental-contract-body">
-                <div className="rental-period">
-                  <div>
-                    <span>Начало</span>
-                    <strong>{rental.start}</strong>
-                  </div>
-                  <div className="rental-period-line">
-                    <i />
-                    <span>
-                      <b style={{ width: `${rental.progress}%` }} />
-                    </span>
-                    <i />
-                    <small>{rental.periodLabel}</small>
-                  </div>
-                  <div>
-                    <span>Окончание</span>
-                    <strong>{rental.end}</strong>
-                  </div>
-                </div>
-
-                <div className="contract-countdown">
-                  <span>
-                    <Icon name="clock" size={14} /> До окончания
-                  </span>
-                  <BookingCountdown hours={rental.hours} />
-                </div>
-
-                <div className="rental-finance">
-                  <div>
-                    <span>Стоимость</span>
-                    <strong>{rental.price}</strong>
-                  </div>
-                  <div>
-                    <span>Оплачено</span>
-                    <strong>{rental.paid}</strong>
-                  </div>
-                  <div>
-                    <span>Тариф</span>
-                    <strong>{rental.rate}</strong>
-                  </div>
-                  <div>
-                    <span>Залог</span>
-                    <strong>{rental.deposit}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rental-contract-actions">
-                <button onClick={() => setReminderBooking(rental.title)}>
-                  <Icon name="bell" size={15} /> SMS-напоминание
-                </button>
-                <button onClick={() => toast(`${rental.title}: продление открыто`)}>
-                  <Icon name="plus" size={15} /> Продлить
-                </button>
-                <button onClick={() => openPayment(rental)}>
-                  <Icon name="wallet" size={15} /> Оплата
-                </button>
-                <button onClick={() => setEditingRental({ ...rental })}>
-                  <Icon name="settings" size={15} /> Редактировать
-                </button>
-                <button
-                  className="delete-rental-button"
-                  onClick={() => setDeletingRental(rental)}
-                  aria-label={`Удалить ${rental.title}`}
-                >
-                  <Icon name="close" size={15} />
-                </button>
-              </div>
-            </article>
+          {activeRentals.map((rental) => (
+            <ActiveLease
+              key={rental.id}
+              rental={rental}
+              onRemind={() => setReminderBooking(rental.title)}
+              onExtend={() => toast(`${rental.title}: продление открыто`)}
+              onPay={() => openPayment(rental)}
+              onEdit={() => setEditingRental({ ...rental })}
+              onDelete={() => setDeletingRental(rental)}
+            />
           ))}
+          {activeRentals.length === 0 && (
+            <p className="lease-empty">Нет активных аренд. Они появятся после оплаты плана.</p>
+          )}
         </div>
       </section>
 
@@ -1248,156 +1310,181 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
               </button>
             </div>
           </div>
-          <div className="rental-budget-kpis">
-            <div className="primary">
-              <span>Лимит на месяц</span>
-              <strong>240 000 ₽</strong>
-              <small>Можно изменить в настройках бюджета</small>
-            </div>
-            <div>
-              <span>Уже оплачено</span>
-              <strong>112 400 ₽</strong>
-              <small>47% месячного лимита</small>
-            </div>
-            <div>
-              <span>Обязательства</span>
-              <strong>60 400 ₽</strong>
-              <small>Нужно оплатить до 24 июня</small>
-            </div>
-            <div className="available">
-              <span>Доступно</span>
-              <strong>67 200 ₽</strong>
-              <small>На новые аренды</small>
-            </div>
-          </div>
-          <div className="budget-usage">
-            <div className="budget-usage-labels">
-              <span>Использовано и зарезервировано</span>
-              <strong>
-                172 800 ₽ <small>из 240 000 ₽</small>
-              </strong>
-            </div>
-            <div className="budget-usage-bar">
-              <i className="paid" />
-              <i className="committed" />
-              <i className="free" />
-              <b>72%</b>
-            </div>
-            <div className="budget-usage-legend">
-              <span>
-                <i className="paid" />
-                Оплачено 112 400 ₽
-              </span>
-              <span>
-                <i className="committed" />К оплате 60 400 ₽
-              </span>
-              <span>
-                <i className="free" />
-                Свободно 67 200 ₽
-              </span>
-            </div>
-          </div>
-          <div className="rental-budget-detail">
-            <div className="rental-cost-categories">
-              <div className="budget-subhead">
-                <div>
-                  <strong>По типам аренды</strong>
-                  <span>Расходы и обязательства</span>
-                </div>
-                <button onClick={() => toast("Подробная аналитика открыта")}>Подробнее</button>
+          <div className={`rent-budget ${budgetSlice}`}>
+            <div className="rent-budget-hero">
+              <div className="rent-budget-ring" aria-hidden="true">
+                <span>
+                  <strong>
+                    {budgetSlice === "paid"
+                      ? "47%"
+                      : budgetSlice === "due"
+                        ? "25%"
+                        : budgetSlice === "free"
+                          ? "28%"
+                          : "72%"}
+                  </strong>
+                  <small>{budgetSlice === "all" ? "занято" : "доля"}</small>
+                </span>
               </div>
-              {[
-                ["Жильё", "hotel", "92 400 ₽", "54%", "housing"],
-                ["Транспорт", "car", "38 800 ₽", "23%", "mobility"],
-                ["Рабочие места", "briefcase", "24 000 ₽", "14%", "workspace"],
-                ["Оборудование", "camera", "17 600 ₽", "9%", "gear"],
-              ].map(([label, icon, value, percent, tone]) => (
-                <div className="rental-cost-row" key={label}>
-                  <span className={`cost-icon ${tone}`}>
-                    <Icon name={icon as IconName} size={15} />
-                  </span>
-                  <div>
-                    <strong>{label}</strong>
-                    <i>
-                      <em className={tone} style={{ width: percent }} />
-                    </i>
-                  </div>
-                  <p>
-                    <strong>{value}</strong>
-                    <span>{percent}</span>
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="upcoming-rental-payments">
-              <div className="budget-subhead">
-                <div>
-                  <strong>Ближайшие платежи</strong>
-                  <span>Следующие 10 дней</span>
-                </div>
-                <span className="soft-badge">3 платежа</span>
+              <div className="rent-budget-hero-copy">
+                <span>Свободно на новые аренды</span>
+                <strong>67 200 ₽</strong>
+                <small>Лимит июня 240 000 ₽ · уже назначено 172 800 ₽</small>
               </div>
+            </div>
+
+            <div className="rent-budget-shares" role="group" aria-label="Состав лимита">
               {[
-                ["17 июн", "Lisboa Bikes", "1 400 ₽", "Остаток"],
-                ["19 июн", "Second Home", "12 000 ₽", "Полная оплата"],
-                ["24 июн", "Sixt · RAV4", "47 000 ₽", "Предоплата"],
-              ].map(([date, title, value, type]) => (
-                <button key={title} onClick={() => toast(`${title}: платёж открыт`)}>
-                  <time>{date}</time>
-                  <div>
-                    <strong>{title}</strong>
-                    <small>{type}</small>
-                  </div>
-                  <b>{value}</b>
-                  <Icon name="chevron" size={14} />
+                ["paid", "Оплачено", "112 400 ₽", "Уже списано"],
+                ["due", "К оплате", "60 400 ₽", "До 24 июня"],
+                ["free", "Свободно", "67 200 ₽", "Можно взять ещё"],
+              ].map(([id, label, value, note]) => (
+                <button
+                  className={budgetSlice === id ? "active" : ""}
+                  key={id}
+                  onClick={() => setBudgetSlice((current) => (current === id ? "all" : (id as "paid" | "due" | "free")))}
+                >
+                  <i />
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                  <small>{note}</small>
                 </button>
               ))}
             </div>
-          </div>
-          <div className="rental-budget-insight">
-            <Icon name="sparkle" size={17} />
-            <p>
-              <strong>Бюджет под контролем</strong>
-              <span>
-                Даже с планируемым автомобилем останется резерв 20 200 ₽. Самая крупная категория —
-                жильё.
-              </span>
-            </p>
-            <button onClick={() => toast("Прогноз бюджета открыт")}>
-              Прогноз <Icon name="arrow" size={14} />
-            </button>
+
+            <div className="rent-budget-body">
+              <div className="rent-budget-mix">
+                <div className="rent-budget-subhead">
+                  <div>
+                    <strong>Куда уходит лимит</strong>
+                    <span>Доли от назначенных 172 800 ₽</span>
+                  </div>
+                  <button onClick={() => toast("Подробная аналитика открыта")}>Подробнее</button>
+                </div>
+                <div className="rent-mix-bar" aria-hidden="true">
+                  <i className="housing" />
+                  <i className="mobility" />
+                  <i className="workspace" />
+                  <i className="gear" />
+                </div>
+                {[
+                  ["Жильё", "hotel", "92 400 ₽", "54%", "housing", "The Lumiares"],
+                  ["Транспорт", "car", "38 800 ₽", "23%", "mobility", "Велосипед и план на авто"],
+                  ["Рабочие места", "briefcase", "24 000 ₽", "14%", "workspace", "Second Home"],
+                  ["Оборудование", "camera", "17 600 ₽", "9%", "gear", "Камера на выходные"],
+                ].map(([label, icon, value, percent, tone, note]) => (
+                  <button
+                    className="rent-mix-row"
+                    key={label}
+                    onClick={() => toast(`${label}: ${value}`)}
+                  >
+                    <span className={`cost-icon ${tone}`}>
+                      <Icon name={icon as IconName} size={15} />
+                    </span>
+                    <div>
+                      <strong>{label}</strong>
+                      <small>{note}</small>
+                    </div>
+                    <p>
+                      <strong>{value}</strong>
+                      <span>{percent}</span>
+                    </p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="rent-budget-schedule">
+                <div className="rent-budget-subhead">
+                  <div>
+                    <strong>Что списать дальше</strong>
+                    <span>Три платежа · 60 400 ₽</span>
+                  </div>
+                </div>
+                <ol>
+                  {[
+                    ["17 июн", "Lisboa Bikes", "1 400 ₽", "Остаток", false],
+                    ["19 июн", "Second Home", "12 000 ₽", "Полная оплата", false],
+                    ["24 июн", "Sixt · RAV4", "47 000 ₽", "Предоплата", true],
+                  ].map(([date, title, value, type, heavy]) => (
+                    <li key={String(title)} className={heavy ? "heavy" : ""}>
+                      <button onClick={() => toast(`${title}: платёж открыт`)}>
+                        <time>{date}</time>
+                        <div>
+                          <strong>{title}</strong>
+                          <small>{type}</small>
+                        </div>
+                        <b>{value}</b>
+                      </button>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </div>
+
+            <div className="rent-budget-scenario">
+              <Icon name="sparkle" size={16} />
+              <p>
+                <strong>Если взять автомобиль в Исландии</strong>
+                <span>Предоплата 47 000 ₽ оставит резерв 20 200 ₽. Самая крупная доля по-прежнему жильё.</span>
+              </p>
+              <button onClick={() => toast("Прогноз бюджета открыт")}>
+                Прогноз <Icon name="arrow" size={14} />
+              </button>
+            </div>
           </div>
         </article>
 
-        <article className="panel planned-booking-card">
-          <div className="planned-head">
-            <span className="planned-icon">
-              <Icon name="sparkle" size={19} />
-            </span>
-            <span className="overline">ПЛАНИРУЕТСЯ</span>
-            <button onClick={() => toast("Планирование скрыто")}>
-              <Icon name="more" size={17} />
-            </button>
-          </div>
-          <h3>Автомобиль для Исландии</h3>
-          <p>12 дней · 4 человека · сентябрь</p>
-          <div className="planned-price">
-            <span>Плановый бюджет</span>
-            <strong>75 000 ₽</strong>
-          </div>
-          <div className="ai-saving">
-            <Icon name="sparkle" size={15} />
-            <span>Астра нашла варианты от 61 400 ₽</span>
-          </div>
-          <div className="planned-actions">
-            <button className="secondary-button" onClick={openPlannedAi}>
-              Подобрать
-            </button>
-            <button className="primary" onClick={plan}>
-              Запланировать <Icon name="arrow" size={15} />
-            </button>
-          </div>
-        </article>
+        <div className="planned-stack">
+          {plannedRentals.map((rental) => (
+            <article className="panel planned-booking-card" key={rental.id}>
+              <div className="planned-head">
+                <span className="planned-icon">
+                  <Icon name={rental.icon} size={18} />
+                </span>
+                <span className="overline">ПЛАН · НЕ ОПЛАЧЕНО</span>
+                <button onClick={() => setDeletingRental(rental)} aria-label={`Отменить ${rental.title}`}>
+                  <Icon name="close" size={16} />
+                </button>
+              </div>
+              <h3>{rental.title}</h3>
+              <p>
+                {rental.detail} · {rental.location}
+              </p>
+              <div className="planned-price">
+                <span>К оплате</span>
+                <strong>{rental.price}</strong>
+              </div>
+              {rental.id === 4 && (
+                <div className="ai-saving">
+                  <Icon name="sparkle" size={15} />
+                  <span>Астра нашла варианты от 61 400 ₽</span>
+                </div>
+              )}
+              <div className="planned-actions">
+                {rental.id === 4 && (
+                  <button className="secondary-button" onClick={openPlannedAi}>
+                    Подобрать
+                  </button>
+                )}
+                <button className="primary" onClick={() => openPayment(rental)}>
+                  Оплатить <Icon name="arrow" size={15} />
+                </button>
+              </div>
+            </article>
+          ))}
+          {plannedRentals.length === 0 && (
+            <article className="panel planned-booking-card">
+              <span className="overline">ПЛАН</span>
+              <h3>Нет неоплаченных аренд</h3>
+              <p>Новая аренда останется здесь, пока её не оплатят.</p>
+              <div className="planned-actions">
+                <button className="primary" onClick={plan}>
+                  Запланировать <Icon name="arrow" size={15} />
+                </button>
+              </div>
+            </article>
+          )}
+        </div>
       </div>
 
       <section className="panel booking-scheduler">
@@ -1888,7 +1975,8 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
             <p className="eyebrow">ОПЛАТА АРЕНДЫ</p>
             <h2>{paymentRental.title}</h2>
             <p className="modal-subtitle">
-              Общая стоимость {paymentRental.price}. Укажите текущий статус и оплаченную сумму.
+              Общая стоимость {paymentRental.price}. Полная или частичная оплата делает аренду
+              активной, если её не отменили вручную.
             </p>
             <div className="payment-status-options">
               {(["Оплачено", "Частично", "Не оплачено"] as const).map((status) => (
@@ -1944,31 +2032,21 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
             <div className="delete-rental-icon">
               <Icon name="close" size={22} />
             </div>
-            <p className="eyebrow">УДАЛЕНИЕ АРЕНДЫ</p>
-            <h2>Удалить {deletingRental.title}?</h2>
+            <p className="eyebrow">РУЧНАЯ ОТМЕНА</p>
+            <h2>Отменить {deletingRental.title}?</h2>
             <p className="modal-subtitle">
-              Таймер, напоминания и финансовые данные этой аренды будут удалены из
-              демо-пространства.
+              Отменённая аренда не попадёт в активные, даже если по ней уже есть оплата.
             </p>
             <div className="delete-rental-warning">
               <Icon name="bell" size={17} />
-              <span>Сам договор у поставщика отменён не будет.</span>
+              <span>Это ручная отмена. Сам договор у поставщика здесь не закрывается.</span>
             </div>
             <div className="delete-rental-actions">
               <button className="secondary-button" onClick={() => setDeletingRental(null)}>
                 Оставить
               </button>
-              <button
-                className="danger-button"
-                onClick={() => {
-                  setRentals((current) =>
-                    current.filter((rental) => rental.id !== deletingRental.id),
-                  );
-                  setDeletingRental(null);
-                  toast("Аренда удалена");
-                }}
-              >
-                Удалить аренду
+              <button className="danger-button" onClick={() => cancelRental(deletingRental)}>
+                Отменить аренду
               </button>
             </div>
           </div>
