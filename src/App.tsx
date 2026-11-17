@@ -37,7 +37,9 @@ type IconName =
   | "terminal"
   | "server"
   | "copy"
-  | "link";
+  | "link"
+  | "camera"
+  | "car";
 
 const paths: Record<IconName, ReactNode> = {
   home: (
@@ -235,6 +237,18 @@ const paths: Record<IconName, ReactNode> = {
         d="M7.5 16.5 5 19a3.5 3.5 0 0 1-5-5l3-3a3.5 3.5 0 0 1 5 0M16.5 7.5 19 5a3.5 3.5 0 0 1 5 5l-3 3a3.5 3.5 0 0 1-5 0"
         transform="translate(-2 -2)"
       />
+    </>
+  ),
+  camera: (
+    <>
+      <path d="M4 7h4l1.5-2h5L16 7h4v12H4V7Z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </>
+  ),
+  car: (
+    <>
+      <path d="m4 16 1.5-6h13l1.5 6v3h-2v-2H6v2H4v-3Z" />
+      <path d="m7 10 1.5-4h7l1.5 4M7.5 14h.01M16.5 14h.01" />
     </>
   ),
 };
@@ -657,12 +671,12 @@ const planContent: Record<
   }
 > = {
   booking: {
-    eyebrow: "НОВОЕ БРОНИРОВАНИЕ",
-    title: "Добавить в поездку",
-    subtitle: "Все детали будут собраны в одном месте, а Астра напомнит о важных сроках.",
+    eyebrow: "НОВАЯ АРЕНДА",
+    title: "Запланировать аренду",
+    subtitle: "Добавьте объект, сроки и бюджет — Астра проследит за оплатой и возвратом.",
     icon: "calendar",
     placeholder: "Например, The Lumiares",
-    button: "Сохранить бронирование",
+    button: "Запланировать аренду",
   },
   event: {
     eyebrow: "НОВОЕ СОБЫТИЕ",
@@ -707,7 +721,7 @@ function Modal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [type, setType] = useState("Отель");
+  const [type, setType] = useState("Жильё");
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Еда");
   const content = planContent[kind];
@@ -738,9 +752,9 @@ function Modal({
         {kind === "booking" && (
           <div className="type-switch">
             {[
-              ["Отель", "hotel"],
-              ["Перелёт", "plane"],
-              ["Транспорт", "train"],
+              ["Жильё", "hotel"],
+              ["Транспорт", "car"],
+              ["Оборудование", "camera"],
             ].map(([label, icon]) => (
               <button
                 className={type === label ? "active" : ""}
@@ -760,7 +774,7 @@ function Modal({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={
-            kind === "booking" && type !== "Отель" ? "Введите детали" : content.placeholder
+            kind === "booking" && type !== "Жильё" ? "Введите объект аренды" : content.placeholder
           }
         />
         {kind === "expense" && (
@@ -785,16 +799,28 @@ function Modal({
             </div>
           </div>
         )}
-        <div className="field-grid">
+        <div className={kind === "booking" ? "field-grid booking-fields" : "field-grid"}>
           <div>
             <label className="field-label">
               {kind === "expense" ? "Дата операции" : "Дата начала"}
             </label>
             <input type="date" defaultValue="2025-06-21" />
           </div>
+          {kind === "booking" && (
+            <div>
+              <label className="field-label">Дата окончания</label>
+              <input type="date" defaultValue="2025-06-28" />
+            </div>
+          )}
           <div>
             <label className="field-label">
-              {kind === "task" ? "Время" : kind === "expense" ? "Сумма" : "Бюджет"}
+              {kind === "task"
+                ? "Время"
+                : kind === "expense"
+                  ? "Сумма"
+                  : kind === "booking"
+                    ? "Бюджет аренды"
+                    : "Бюджет"}
             </label>
             <input placeholder={kind === "task" ? "12:00" : "0 ₽"} />
           </div>
@@ -855,50 +881,552 @@ function StatCard({
   );
 }
 
-function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string) => void }) {
-  const [filter, setFilter] = useState("Все");
+function BookingCountdown({ hours }: { hours: number }) {
+  const [seconds, setSeconds] = useState(hours * 3600 + 24 * 60);
+  useEffect(() => {
+    const timer = window.setInterval(() => setSeconds((value) => Math.max(0, value - 60)), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const days = Math.floor(seconds / 86400);
+  const currentHours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
   return (
-    <div className="section-page">
+    <div className="booking-countdown">
+      <div>
+        <strong>{String(days).padStart(2, "0")}</strong>
+        <span>дней</span>
+      </div>
+      <i>:</i>
+      <div>
+        <strong>{String(currentHours).padStart(2, "0")}</strong>
+        <span>часов</span>
+      </div>
+      <i>:</i>
+      <div>
+        <strong>{String(minutes).padStart(2, "0")}</strong>
+        <span>мин</span>
+      </div>
+    </div>
+  );
+}
+
+type RentalItem = {
+  id: number;
+  title: string;
+  type: string;
+  icon: IconName;
+  location: string;
+  start: string;
+  end: string;
+  detail: string;
+  hours: number;
+  tone: string;
+  paymentStatus: "Оплачено" | "Частично" | "Не оплачено";
+  price: string;
+  paid: string;
+  rate: string;
+  deposit: string;
+  progress: number;
+  periodLabel: string;
+  urgent?: boolean;
+};
+
+function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string) => void }) {
+  const [reminderBooking, setReminderBooking] = useState<string | null>(null);
+  const [reminderTime, setReminderTime] = useState("За 1 час");
+  const [calendarView, setCalendarView] = useState("2 недели");
+  const [rentals, setRentals] = useState<RentalItem[]>([
+    {
+      id: 1,
+      title: "The Lumiares",
+      type: "Жильё",
+      icon: "hotel",
+      location: "Rua do Diário de Notícias · Chiado",
+      start: "14 июня · 15:00",
+      end: "21 июня · 11:00",
+      detail: "Выезд 21 июня · до 11:00",
+      hours: 134,
+      tone: "green",
+      paymentStatus: "Оплачено",
+      price: "32 400 ₽",
+      paid: "32 400 ₽",
+      rate: "4 629 ₽ / ночь",
+      deposit: "Без залога",
+      progress: 28,
+      periodLabel: "2 из 7 ночей",
+    },
+    {
+      id: 2,
+      title: "Lisboa Bikes · City",
+      type: "Транспорт",
+      icon: "bike",
+      location: "Praça do Comércio",
+      start: "15 июня · 18:00",
+      end: "17 июня · 18:00",
+      detail: "Вернуть 17 июня · 18:00",
+      hours: 28,
+      tone: "orange",
+      paymentStatus: "Частично",
+      price: "2 800 ₽",
+      paid: "1 400 ₽",
+      rate: "700 ₽ / день",
+      deposit: "Залог 5 000 ₽",
+      progress: 72,
+      periodLabel: "1,5 из 2 дней",
+      urgent: true,
+    },
+    {
+      id: 3,
+      title: "Second Home",
+      type: "Рабочее место",
+      icon: "briefcase",
+      location: "Mercado da Ribeira",
+      start: "16 июня · 09:00",
+      end: "19 июня · 17:00",
+      detail: "Доступ ежедневно · 09:00–17:00",
+      hours: 82,
+      tone: "blue",
+      paymentStatus: "Не оплачено",
+      price: "12 000 ₽",
+      paid: "0 ₽",
+      rate: "4 000 ₽ / день",
+      deposit: "Без залога",
+      progress: 12,
+      periodLabel: "1 из 3 дней",
+    },
+  ]);
+  const [editingRental, setEditingRental] = useState<RentalItem | null>(null);
+  const [deletingRental, setDeletingRental] = useState<RentalItem | null>(null);
+  const [paymentRental, setPaymentRental] = useState<RentalItem | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<RentalItem["paymentStatus"]>("Оплачено");
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [rentalChatOpen, setRentalChatOpen] = useState(false);
+  const [rentalChatInput, setRentalChatInput] = useState("");
+  const [rentalChatTyping, setRentalChatTyping] = useState(false);
+  const [rentalChatMessages, setRentalChatMessages] = useState<
+    Array<{ role: "assistant" | "user"; text: string }>
+  >([
+    {
+      role: "assistant",
+      text: "Расскажите, что хотите арендовать. Я учту сроки, бюджет, залог, условия возврата и ваше расписание.",
+    },
+  ]);
+  const [plannedAiOpen, setPlannedAiOpen] = useState(false);
+  const [plannedAiLoading, setPlannedAiLoading] = useState(false);
+  const bookingDays = Array.from({ length: 15 }, (_, index) => index + 16);
+  const ganttRows = [
+    ["The Lumiares", "Отель · до 21 июня", 1, 6, "stay", "hotel"],
+    ["Lisboa Bikes", "Аренда велосипеда", 1, 2, "transport", "bike"],
+    ["Second Home", "Коворкинг", 1, 4, "work", "briefcase"],
+    ["Sony A7 IV", "Камера и объектив", 3, 3, "equipment", "camera"],
+    ["Sixt · Toyota RAV4", "Автомобиль · план", 11, 5, "planned", "car"],
+  ] as const;
+  function openPayment(rental: RentalItem) {
+    setPaymentRental(rental);
+    setPaymentStatus(rental.paymentStatus);
+    setPaymentAmount(rental.paid);
+  }
+
+  function savePayment() {
+    if (!paymentRental) return;
+    setRentals((current) =>
+      current.map((rental) =>
+        rental.id === paymentRental.id
+          ? { ...rental, paymentStatus, paid: paymentAmount || "0 ₽" }
+          : rental,
+      ),
+    );
+    setPaymentRental(null);
+    toast("Статус оплаты обновлён");
+  }
+
+  function saveRental() {
+    if (!editingRental) return;
+    setRentals((current) =>
+      current.map((rental) => (rental.id === editingRental.id ? editingRental : rental)),
+    );
+    setEditingRental(null);
+    toast("Изменения аренды сохранены");
+  }
+
+  function sendRentalChat(message = rentalChatInput) {
+    const text = message.trim();
+    if (!text) return;
+    setRentalChatMessages((current) => [...current, { role: "user", text }]);
+    setRentalChatInput("");
+    setRentalChatTyping(true);
+    window.setTimeout(() => {
+      setRentalChatMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          text: "Я нашла 18 подходящих вариантов. Лучшее соотношение цены и условий — у предложений с бесплатной отменой, залогом до 10 000 ₽ и гибким возвратом. Могу сузить поиск по району или поставщику.",
+        },
+      ]);
+      setRentalChatTyping(false);
+    }, 900);
+  }
+
+  function openPlannedAi() {
+    setPlannedAiOpen(true);
+    setPlannedAiLoading(true);
+    window.setTimeout(() => setPlannedAiLoading(false), 1200);
+  }
+
+  return (
+    <div className="section-page bookings-page">
       <PageTitle
-        label="ПУТЕШЕСТВИЯ"
-        title="Бронирования"
-        description="Маршруты, билеты и проживание — с напоминаниями и документами."
+        label="АРЕНДА И ПОДПИСКИ"
+        title="Аренда"
+        description="Жильё, транспорт, рабочие места и оборудование — сроки, стоимость и продление в одном месте."
         action={
-          <button className="primary page-action" onClick={plan}>
-            Новое бронирование <Icon name="plus" size={17} />
-          </button>
+          <div className="booking-page-actions">
+            <button className="ai-action" onClick={() => setRentalChatOpen(true)}>
+              <Icon name="sparkle" size={17} /> Подобрать с AI
+            </button>
+            <button className="primary page-action" onClick={plan}>
+              Запланировать <Icon name="plus" size={17} />
+            </button>
+          </div>
         }
       />
       <div className="stats-row">
-        <StatCard label="Активные поездки" value="2" note="Ближайшая через 5 дней" icon="plane" />
         <StatCard
-          label="Бронирования"
-          value="7"
-          note="Все подтверждены"
+          label="Активные аренды"
+          value={String(rentals.length)}
+          note="Одна завершится завтра"
           icon="calendar"
+        />
+        <StatCard
+          label="Закончится скоро"
+          value="1 день"
+          note="Lisboa Bikes · завтра"
+          icon="clock"
           tone="blue"
         />
         <StatCard
-          label="Потрачено в июне"
-          value="86 400 ₽"
-          note="На 12% ниже плана"
+          label="Бюджет аренды"
+          value="240 000 ₽"
+          note="72% уже распределено"
           icon="wallet"
           tone="orange"
         />
-        <StatCard label="Документы" value="9 / 9" note="Всё готово" icon="check" tone="purple" />
+        <StatCard
+          label="Расходы в июне"
+          value="112 400 ₽"
+          note="На 9% ниже плана"
+          icon="check"
+          tone="purple"
+        />
       </div>
-      <div className="section-grid bookings-layout">
-        <section className="panel workspace-panel">
+
+      <section className="panel active-bookings-panel">
+        <div className="workspace-head">
+          <div>
+            <h3>Активные аренды</h3>
+            <span className="overline">СРОКИ, СТОИМОСТЬ И ВОЗВРАТ</span>
+          </div>
+          <button className="plain-button" onClick={() => toast("Архив бронирований открыт")}>
+            Архив аренды <Icon name="chevron" size={15} />
+          </button>
+        </div>
+        <div className="rental-contracts-list">
+          {rentals.map((rental) => (
+            <article className={`rental-contract-card ${rental.tone}`} key={rental.id}>
+              <div className="rental-contract-head">
+                <span className="featured-rental-icon">
+                  <Icon name={rental.icon} size={22} />
+                </span>
+                <div>
+                  <span>
+                    {rental.type} · {rental.location}
+                  </span>
+                  <h3>{rental.title}</h3>
+                  <small>{rental.detail}</small>
+                </div>
+                {rental.urgent && <span className="rental-urgent">Скоро возврат</span>}
+                <button
+                  className={`payment-status-button ${rental.paymentStatus === "Не оплачено" ? "unpaid" : rental.paymentStatus === "Частично" ? "partial" : ""}`}
+                  onClick={() => openPayment(rental)}
+                >
+                  <i />
+                  {rental.paymentStatus}
+                  <Icon name="chevron" size={13} />
+                </button>
+                <button className="rental-menu-button" onClick={() => setEditingRental(rental)}>
+                  <Icon name="more" size={18} />
+                </button>
+              </div>
+
+              <div className="rental-contract-body">
+                <div className="rental-period">
+                  <div>
+                    <span>Начало</span>
+                    <strong>{rental.start}</strong>
+                  </div>
+                  <div className="rental-period-line">
+                    <i />
+                    <span>
+                      <b style={{ width: `${rental.progress}%` }} />
+                    </span>
+                    <i />
+                    <small>{rental.periodLabel}</small>
+                  </div>
+                  <div>
+                    <span>Окончание</span>
+                    <strong>{rental.end}</strong>
+                  </div>
+                </div>
+
+                <div className="contract-countdown">
+                  <span>
+                    <Icon name="clock" size={14} /> До окончания
+                  </span>
+                  <BookingCountdown hours={rental.hours} />
+                </div>
+
+                <div className="rental-finance">
+                  <div>
+                    <span>Стоимость</span>
+                    <strong>{rental.price}</strong>
+                  </div>
+                  <div>
+                    <span>Оплачено</span>
+                    <strong>{rental.paid}</strong>
+                  </div>
+                  <div>
+                    <span>Тариф</span>
+                    <strong>{rental.rate}</strong>
+                  </div>
+                  <div>
+                    <span>Залог</span>
+                    <strong>{rental.deposit}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rental-contract-actions">
+                <button onClick={() => setReminderBooking(rental.title)}>
+                  <Icon name="bell" size={15} /> SMS-напоминание
+                </button>
+                <button onClick={() => toast(`${rental.title}: продление открыто`)}>
+                  <Icon name="plus" size={15} /> Продлить
+                </button>
+                <button onClick={() => openPayment(rental)}>
+                  <Icon name="wallet" size={15} /> Оплата
+                </button>
+                <button onClick={() => setEditingRental({ ...rental })}>
+                  <Icon name="settings" size={15} /> Редактировать
+                </button>
+                <button
+                  className="delete-rental-button"
+                  onClick={() => setDeletingRental(rental)}
+                  aria-label={`Удалить ${rental.title}`}
+                >
+                  <Icon name="close" size={15} />
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <div className="booking-budget-layout">
+        <article className="panel booking-budget-card">
           <div className="workspace-head">
             <div>
-              <span className="overline">БЛИЖАЙШАЯ ПОЕЗДКА</span>
-              <h3>Лиссабон · 21–28 июня</h3>
+              <h3>Бюджет аренды</h3>
+              <span className="overline">ПЛАН-ФАКТ · ИЮНЬ</span>
             </div>
+            <div className="budget-header-actions">
+              <button onClick={() => toast("Показан май")}>
+                <Icon name="chevron" size={14} />
+              </button>
+              <span>Июнь 2025</span>
+              <button onClick={() => toast("Показан июль")}>
+                <Icon name="chevron" size={14} />
+              </button>
+            </div>
+          </div>
+          <div className="rental-budget-kpis">
+            <div className="primary">
+              <span>Лимит на месяц</span>
+              <strong>240 000 ₽</strong>
+              <small>Можно изменить в настройках бюджета</small>
+            </div>
+            <div>
+              <span>Уже оплачено</span>
+              <strong>112 400 ₽</strong>
+              <small>47% месячного лимита</small>
+            </div>
+            <div>
+              <span>Обязательства</span>
+              <strong>60 400 ₽</strong>
+              <small>Нужно оплатить до 24 июня</small>
+            </div>
+            <div className="available">
+              <span>Доступно</span>
+              <strong>67 200 ₽</strong>
+              <small>На новые аренды</small>
+            </div>
+          </div>
+          <div className="budget-usage">
+            <div className="budget-usage-labels">
+              <span>Использовано и зарезервировано</span>
+              <strong>
+                172 800 ₽ <small>из 240 000 ₽</small>
+              </strong>
+            </div>
+            <div className="budget-usage-bar">
+              <i className="paid" />
+              <i className="committed" />
+              <i className="free" />
+              <b>72%</b>
+            </div>
+            <div className="budget-usage-legend">
+              <span>
+                <i className="paid" />
+                Оплачено 112 400 ₽
+              </span>
+              <span>
+                <i className="committed" />К оплате 60 400 ₽
+              </span>
+              <span>
+                <i className="free" />
+                Свободно 67 200 ₽
+              </span>
+            </div>
+          </div>
+          <div className="rental-budget-detail">
+            <div className="rental-cost-categories">
+              <div className="budget-subhead">
+                <div>
+                  <strong>По типам аренды</strong>
+                  <span>Расходы и обязательства</span>
+                </div>
+                <button onClick={() => toast("Подробная аналитика открыта")}>Подробнее</button>
+              </div>
+              {[
+                ["Жильё", "hotel", "92 400 ₽", "54%", "housing"],
+                ["Транспорт", "car", "38 800 ₽", "23%", "mobility"],
+                ["Рабочие места", "briefcase", "24 000 ₽", "14%", "workspace"],
+                ["Оборудование", "camera", "17 600 ₽", "9%", "gear"],
+              ].map(([label, icon, value, percent, tone]) => (
+                <div className="rental-cost-row" key={label}>
+                  <span className={`cost-icon ${tone}`}>
+                    <Icon name={icon as IconName} size={15} />
+                  </span>
+                  <div>
+                    <strong>{label}</strong>
+                    <i>
+                      <em className={tone} style={{ width: percent }} />
+                    </i>
+                  </div>
+                  <p>
+                    <strong>{value}</strong>
+                    <span>{percent}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="upcoming-rental-payments">
+              <div className="budget-subhead">
+                <div>
+                  <strong>Ближайшие платежи</strong>
+                  <span>Следующие 10 дней</span>
+                </div>
+                <span className="soft-badge">3 платежа</span>
+              </div>
+              {[
+                ["17 июн", "Lisboa Bikes", "1 400 ₽", "Остаток"],
+                ["19 июн", "Second Home", "12 000 ₽", "Полная оплата"],
+                ["24 июн", "Sixt · RAV4", "47 000 ₽", "Предоплата"],
+              ].map(([date, title, value, type]) => (
+                <button key={title} onClick={() => toast(`${title}: платёж открыт`)}>
+                  <time>{date}</time>
+                  <div>
+                    <strong>{title}</strong>
+                    <small>{type}</small>
+                  </div>
+                  <b>{value}</b>
+                  <Icon name="chevron" size={14} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="rental-budget-insight">
+            <Icon name="sparkle" size={17} />
+            <p>
+              <strong>Бюджет под контролем</strong>
+              <span>
+                Даже с планируемым автомобилем останется резерв 20 200 ₽. Самая крупная категория —
+                жильё.
+              </span>
+            </p>
+            <button onClick={() => toast("Прогноз бюджета открыт")}>
+              Прогноз <Icon name="arrow" size={14} />
+            </button>
+          </div>
+        </article>
+
+        <article className="panel planned-booking-card">
+          <div className="planned-head">
+            <span className="planned-icon">
+              <Icon name="sparkle" size={19} />
+            </span>
+            <span className="overline">ПЛАНИРУЕТСЯ</span>
+            <button onClick={() => toast("Планирование скрыто")}>
+              <Icon name="more" size={17} />
+            </button>
+          </div>
+          <h3>Автомобиль для Исландии</h3>
+          <p>12 дней · 4 человека · сентябрь</p>
+          <div className="planned-price">
+            <span>Плановый бюджет</span>
+            <strong>75 000 ₽</strong>
+          </div>
+          <div className="ai-saving">
+            <Icon name="sparkle" size={15} />
+            <span>Астра нашла варианты от 61 400 ₽</span>
+          </div>
+          <div className="planned-actions">
+            <button className="secondary-button" onClick={openPlannedAi}>
+              Подобрать
+            </button>
+            <button className="primary" onClick={plan}>
+              Запланировать <Icon name="arrow" size={15} />
+            </button>
+          </div>
+        </article>
+      </div>
+
+      <section className="panel booking-scheduler">
+        <div className="scheduler-head">
+          <div>
+            <h3>Календарь аренды</h3>
+            <span className="overline">ВСЕ ОБЪЕКТЫ · 16–30 ИЮНЯ</span>
+          </div>
+          <div className="scheduler-controls">
+            <button
+              aria-label="Предыдущий период"
+              onClick={() => toast("Показан предыдущий период")}
+            >
+              <Icon name="chevron" size={16} />
+            </button>
+            <button
+              className="today-button"
+              onClick={() => toast("Календарь возвращён к сегодняшней дате")}
+            >
+              Сегодня
+            </button>
+            <button aria-label="Следующий период" onClick={() => toast("Показан следующий период")}>
+              <Icon name="chevron" size={16} />
+            </button>
             <div className="segmented">
-              {["Все", "Транспорт", "Жильё"].map((item) => (
+              {["2 недели", "Месяц"].map((item) => (
                 <button
-                  className={filter === item ? "active" : ""}
-                  onClick={() => setFilter(item)}
+                  className={calendarView === item ? "active" : ""}
+                  onClick={() => setCalendarView(item)}
                   key={item}
                 >
                   {item}
@@ -906,93 +1434,600 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
               ))}
             </div>
           </div>
-          <div className="travel-timeline">
-            {[
-              [
-                "21 июн",
-                "plane",
-                "Перелёт в Лиссабон",
-                "SU 2682 · SVO → LIS",
-                "09:45",
-                "Подтверждено",
-              ],
-              ["21 июн", "hotel", "The Lumiares", "Rua do Diário de Notícias", "15:00", "Оплачено"],
-              [
-                "24 июн",
-                "calendar",
-                "Коворкинг Second Home",
-                "Дневной пропуск · 3 дня",
-                "09:00",
-                "В календаре",
-              ],
-              [
-                "28 июн",
-                "plane",
-                "Обратный перелёт",
-                "SU 2683 · LIS → SVO",
-                "18:20",
-                "Подтверждено",
-              ],
-            ]
-              .filter(
-                (item) =>
-                  filter === "Все" ||
-                  (filter === "Транспорт" ? item[1] === "plane" : item[1] === "hotel"),
-              )
-              .map(([date, icon, title, note, time, status]) => (
-                <button
-                  className="timeline-item"
-                  key={title}
-                  onClick={() => toast(`${title}: детали открыты`)}
-                >
-                  <time>{date}</time>
-                  <span className="timeline-icon">
-                    <Icon name={icon as IconName} size={18} />
+        </div>
+        <div className="scheduler-scroll">
+          <div className="gantt-calendar">
+            <div className="gantt-corner">
+              <span>Объект аренды</span>
+            </div>
+            {bookingDays.map((day) => (
+              <div
+                className={`gantt-day ${[21, 22, 28, 29].includes(day) ? "weekend" : ""} ${day === 16 ? "today" : ""}`}
+                key={day}
+              >
+                <span>{["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"][(day - 16) % 7]}</span>
+                <strong>{day}</strong>
+              </div>
+            ))}
+            {ganttRows.map(([title, note, start, span, tone, icon]) => (
+              <div className="gantt-row" key={title}>
+                <button className="gantt-label" onClick={() => toast(`${title}: детали открыты`)}>
+                  <span>
+                    <Icon name={icon as IconName} size={16} />
                   </span>
                   <div>
                     <strong>{title}</strong>
                     <small>{note}</small>
                   </div>
-                  <div className="timeline-meta">
-                    <strong>{time}</strong>
-                    <span>{status}</span>
+                </button>
+                <div className="gantt-track">
+                  <button
+                    className={`gantt-bar ${tone}`}
+                    style={{ gridColumn: `${start} / span ${span}` }}
+                    onClick={() => toast(`${title}: бронирование открыто`)}
+                  >
+                    <span>{title}</span>
+                    {span > 1 && <small>{span} дн.</small>}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="scheduler-legend">
+          <span>
+            <i className="stay" />
+            Проживание
+          </span>
+          <span>
+            <i className="transport" />
+            Транспорт
+          </span>
+          <span>
+            <i className="work" />
+            Рабочие места
+          </span>
+          <span>
+            <i className="equipment" />
+            Оборудование
+          </span>
+          <span>
+            <i className="planned" />
+            Планируется
+          </span>
+          <button onClick={() => toast("Экспорт календаря подготовлен")}>
+            <Icon name="calendar" size={14} /> Экспорт в календарь
+          </button>
+        </div>
+      </section>
+
+      <div className="booking-insights-grid">
+        <article className="panel booking-insight-card warning">
+          <span>
+            <Icon name="bell" size={18} />
+          </span>
+          <div>
+            <strong>Бесплатная отмена заканчивается завтра</strong>
+            <p>The Lumiares можно отменить без штрафа до 18 июня, 15:00.</p>
+          </div>
+          <button onClick={() => toast("Условия отмены открыты")}>
+            <Icon name="chevron" size={15} />
+          </button>
+        </article>
+        <article className="panel booking-insight-card saving">
+          <span>
+            <Icon name="sparkle" size={18} />
+          </span>
+          <div>
+            <strong>Можно сэкономить 13 600 ₽</strong>
+            <p>Астра нашла более выгодную аренду автомобиля для Исландии.</p>
+          </div>
+          <button onClick={openPlannedAi}>
+            <Icon name="chevron" size={15} />
+          </button>
+        </article>
+      </div>
+
+      {rentalChatOpen && (
+        <div className="context-ai-backdrop">
+          <section className="context-ai-panel rental-chat-panel">
+            <header className="context-ai-header">
+              <div className="chat-identity">
+                <span className="chat-brand">
+                  <span className="brand-mark">
+                    <span />
+                  </span>
+                  <i />
+                </span>
+                <div>
+                  <strong>Астра · подбор аренды</strong>
+                  <span>Учитывает ваш бюджет, календарь и активные договоры</span>
+                </div>
+              </div>
+              <button onClick={() => setRentalChatOpen(false)} aria-label="Закрыть">
+                <Icon name="close" size={20} />
+              </button>
+            </header>
+            <div className="rental-chat-layout">
+              <div className="rental-chat-main">
+                <div className="rental-chat-messages">
+                  <div className="rental-chat-day">
+                    <span>Новый поиск</span>
                   </div>
-                  <Icon name="chevron" size={17} />
+                  {rentalChatMessages.map((message, index) => (
+                    <div
+                      className={`rental-chat-message ${message.role}`}
+                      key={`${message.text}-${index}`}
+                    >
+                      {message.role === "assistant" && (
+                        <span className="chat-mini-brand">
+                          <span className="brand-mark">
+                            <span />
+                          </span>
+                        </span>
+                      )}
+                      <div>
+                        <p>{message.text}</p>
+                        <time>сейчас</time>
+                      </div>
+                    </div>
+                  ))}
+                  {rentalChatTyping && (
+                    <div className="rental-chat-message assistant">
+                      <span className="chat-mini-brand">
+                        <span className="brand-mark">
+                          <span />
+                        </span>
+                      </span>
+                      <div className="typing-bubble">
+                        <i />
+                        <i />
+                        <i />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="rental-chat-prompts">
+                  {["Автомобиль на 12 дней", "Жильё до 80 000 ₽", "Камера на выходные"].map(
+                    (prompt) => (
+                      <button onClick={() => sendRentalChat(prompt)} key={prompt}>
+                        {prompt}
+                      </button>
+                    ),
+                  )}
+                </div>
+                <div className="rental-chat-composer">
+                  <button onClick={() => toast("Добавьте договор или фото объекта")}>
+                    <Icon name="clip" size={18} />
+                  </button>
+                  <textarea
+                    rows={1}
+                    value={rentalChatInput}
+                    onChange={(event) => setRentalChatInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !event.shiftKey) {
+                        event.preventDefault();
+                        sendRentalChat();
+                      }
+                    }}
+                    placeholder="Например: нужен автомобиль в Исландии на 12 дней, бюджет до 70 000 ₽"
+                  />
+                  <button className="send" onClick={() => sendRentalChat()}>
+                    <Icon name="arrow" size={18} />
+                  </button>
+                </div>
+              </div>
+              <aside className="rental-chat-context">
+                <span className="overline">КОНТЕКСТ ПОИСКА</span>
+                <h3>Что уже знает Астра</h3>
+                <div className="context-fact">
+                  <Icon name="calendar" size={17} />
+                  <p>
+                    <strong>Сроки</strong>
+                    <span>1–12 сентября · 12 дней</span>
+                  </p>
+                </div>
+                <div className="context-fact">
+                  <Icon name="wallet" size={17} />
+                  <p>
+                    <strong>Доступный бюджет</strong>
+                    <span>67 200 ₽ на новые аренды</span>
+                  </p>
+                </div>
+                <div className="context-fact">
+                  <Icon name="user" size={17} />
+                  <p>
+                    <strong>Участники</strong>
+                    <span>4 человека · 2 водителя</span>
+                  </p>
+                </div>
+                <div className="context-fact">
+                  <Icon name="sparkle" size={17} />
+                  <p>
+                    <strong>Предпочтения</strong>
+                    <span>Без залога · гибкий возврат</span>
+                  </p>
+                </div>
+                <div className="context-warning">
+                  <Icon name="bell" size={16} />
+                  <span>Астра предупредит о скрытых сборах и пересечениях с другими арендами.</span>
+                </div>
+                <button onClick={() => toast("Контекст аренды обновлён")}>
+                  Изменить контекст <Icon name="settings" size={15} />
+                </button>
+              </aside>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {plannedAiOpen && (
+        <div className="context-ai-backdrop">
+          <section className="context-ai-panel planned-ai-panel">
+            <header className="context-ai-header">
+              <div>
+                <span className="overline">ASTRA AI · ДЕМО-ПОДБОР</span>
+                <h2>Автомобиль для Исландии</h2>
+                <p>1–12 сентября · 4 человека · бюджет до 75 000 ₽</p>
+              </div>
+              <button onClick={() => setPlannedAiOpen(false)} aria-label="Закрыть">
+                <Icon name="close" size={20} />
+              </button>
+            </header>
+            {plannedAiLoading ? (
+              <div className="planned-ai-loading">
+                <span className="ai-orbit">
+                  <Icon name="sparkle" size={24} />
+                </span>
+                <h3>Астра сравнивает варианты</h3>
+                <p>Проверяем цены, страховку, залог, пробег и условия возврата у 8 поставщиков.</p>
+                <div>
+                  <i />
+                  <i />
+                  <i />
+                </div>
+              </div>
+            ) : (
+              <div className="planned-ai-results">
+                <div className="planned-ai-summary">
+                  <div>
+                    <span className="overline">РЕЗУЛЬТАТ ПОИСКА</span>
+                    <h3>Нашли 18 вариантов</h3>
+                    <p>Три предложения лучше всего подходят под ваш бюджет и маршрут.</p>
+                  </div>
+                  <div className="ai-summary-saving">
+                    <Icon name="sparkle" size={18} />
+                    <p>
+                      <span>Потенциальная экономия</span>
+                      <strong>до 13 600 ₽</strong>
+                    </p>
+                  </div>
+                </div>
+                <div className="external-rental-results">
+                  {[
+                    [
+                      "Sixt",
+                      "Toyota RAV4 AWD",
+                      "Автомат · полная страховка · 2 водителя",
+                      "61 400 ₽",
+                      "https://www.sixt.com",
+                      "Лучший выбор",
+                    ],
+                    [
+                      "Hertz",
+                      "Kia Sportage 4x4",
+                      "Автомат · безлимитный пробег · залог 8 000 ₽",
+                      "66 800 ₽",
+                      "https://www.hertz.com",
+                      "Гибкий возврат",
+                    ],
+                    [
+                      "Localrent",
+                      "Dacia Duster",
+                      "Механика · страховка включена · залог 5 000 ₽",
+                      "54 900 ₽",
+                      "https://localrent.com",
+                      "Самая низкая цена",
+                    ],
+                  ].map(([provider, title, note, price, url, badge], index) => (
+                    <article className={index === 0 ? "recommended" : ""} key={provider}>
+                      <div className="external-result-head">
+                        <span>{provider.slice(0, 1)}</span>
+                        <div>
+                          <strong>{provider}</strong>
+                          <small>{badge}</small>
+                        </div>
+                        {index === 0 && <b>Рекомендуем</b>}
+                      </div>
+                      <h3>{title}</h3>
+                      <p>{note}</p>
+                      <div className="external-price">
+                        <span>За 12 дней</span>
+                        <strong>{price}</strong>
+                      </div>
+                      <div className="external-result-actions">
+                        <button onClick={() => toast(`${provider}: добавлено в сравнение`)}>
+                          Сравнить
+                        </button>
+                        <a href={url} target="_blank" rel="noreferrer">
+                          Открыть предложение <Icon name="arrow" size={14} />
+                        </a>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+                <div className="planned-ai-footer">
+                  <div>
+                    <Icon name="check" size={17} />
+                    <p>
+                      <strong>Ссылки ведут на сайты поставщиков</strong>
+                      <span>Цены демонстрационные и могут измениться при переходе.</span>
+                    </p>
+                  </div>
+                  <button className="primary" onClick={plan}>
+                    Добавить вариант в план <Icon name="plus" size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {editingRental && (
+        <div className="modal-backdrop" onMouseDown={() => setEditingRental(null)}>
+          <div className="modal rental-edit-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <button
+              className="icon-button modal-close"
+              onClick={() => setEditingRental(null)}
+              aria-label="Закрыть"
+            >
+              <Icon name="close" />
+            </button>
+            <div className="modal-mark">
+              <Icon name={editingRental.icon} size={23} />
+            </div>
+            <p className="eyebrow">РЕДАКТИРОВАНИЕ АРЕНДЫ</p>
+            <h2>{editingRental.title}</h2>
+            <p className="modal-subtitle">
+              Измените объект, сроки или финансовые условия договора.
+            </p>
+            <div className="rental-edit-form">
+              <label>
+                <span className="field-label">Название</span>
+                <input
+                  value={editingRental.title}
+                  onChange={(event) =>
+                    setEditingRental({ ...editingRental, title: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <span className="field-label">Адрес или место</span>
+                <input
+                  value={editingRental.location}
+                  onChange={(event) =>
+                    setEditingRental({ ...editingRental, location: event.target.value })
+                  }
+                />
+              </label>
+              <div className="rental-edit-grid">
+                <label>
+                  <span className="field-label">Начало</span>
+                  <input
+                    value={editingRental.start}
+                    onChange={(event) =>
+                      setEditingRental({ ...editingRental, start: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  <span className="field-label">Окончание</span>
+                  <input
+                    value={editingRental.end}
+                    onChange={(event) =>
+                      setEditingRental({ ...editingRental, end: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+              <div className="rental-edit-grid">
+                <label>
+                  <span className="field-label">Стоимость</span>
+                  <input
+                    value={editingRental.price}
+                    onChange={(event) =>
+                      setEditingRental({ ...editingRental, price: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  <span className="field-label">Тариф</span>
+                  <input
+                    value={editingRental.rate}
+                    onChange={(event) =>
+                      setEditingRental({ ...editingRental, rate: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+              <label>
+                <span className="field-label">Условия залога</span>
+                <input
+                  value={editingRental.deposit}
+                  onChange={(event) =>
+                    setEditingRental({ ...editingRental, deposit: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <button
+              className="primary wide"
+              onClick={saveRental}
+              disabled={!editingRental.title.trim()}
+            >
+              Сохранить изменения <Icon name="check" size={17} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {paymentRental && (
+        <div className="modal-backdrop" onMouseDown={() => setPaymentRental(null)}>
+          <div className="modal payment-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <button
+              className="icon-button modal-close"
+              onClick={() => setPaymentRental(null)}
+              aria-label="Закрыть"
+            >
+              <Icon name="close" />
+            </button>
+            <div className="modal-mark payment">
+              <Icon name="wallet" size={23} />
+            </div>
+            <p className="eyebrow">ОПЛАТА АРЕНДЫ</p>
+            <h2>{paymentRental.title}</h2>
+            <p className="modal-subtitle">
+              Общая стоимость {paymentRental.price}. Укажите текущий статус и оплаченную сумму.
+            </p>
+            <div className="payment-status-options">
+              {(["Оплачено", "Частично", "Не оплачено"] as const).map((status) => (
+                <button
+                  className={paymentStatus === status ? "active" : ""}
+                  onClick={() => {
+                    setPaymentStatus(status);
+                    if (status === "Оплачено") setPaymentAmount(paymentRental.price);
+                    if (status === "Не оплачено") setPaymentAmount("0 ₽");
+                  }}
+                  key={status}
+                >
+                  <i />
+                  <span>{status}</span>
+                  {paymentStatus === status && <Icon name="check" size={15} />}
                 </button>
               ))}
+            </div>
+            <label className="payment-amount-field">
+              <span className="field-label">Оплаченная сумма</span>
+              <input
+                value={paymentAmount}
+                onChange={(event) => setPaymentAmount(event.target.value)}
+                placeholder="0 ₽"
+              />
+              <small>Из общей суммы {paymentRental.price}</small>
+            </label>
+            <div className="payment-progress-preview">
+              <span>
+                <Icon name="sparkle" size={15} /> Бюджет обновится автоматически
+              </span>
+            </div>
+            <button className="primary wide" onClick={savePayment}>
+              Сохранить оплату <Icon name="check" size={17} />
+            </button>
           </div>
-        </section>
-        <aside className="page-aside">
-          <article className="panel mini-map">
-            <div className="map-art">
-              <span className="map-route" />
-              <i className="pin one" />
-              <i className="pin two" />
+        </div>
+      )}
+
+      {deletingRental && (
+        <div className="modal-backdrop" onMouseDown={() => setDeletingRental(null)}>
+          <div
+            className="modal delete-rental-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              className="icon-button modal-close"
+              onClick={() => setDeletingRental(null)}
+              aria-label="Закрыть"
+            >
+              <Icon name="close" />
+            </button>
+            <div className="delete-rental-icon">
+              <Icon name="close" size={22} />
             </div>
-            <div>
-              <span className="overline">МАРШРУТ</span>
-              <h3>Москва → Лиссабон</h3>
-              <p>4 390 км · 5 ч 35 мин</p>
+            <p className="eyebrow">УДАЛЕНИЕ АРЕНДЫ</p>
+            <h2>Удалить {deletingRental.title}?</h2>
+            <p className="modal-subtitle">
+              Таймер, напоминания и финансовые данные этой аренды будут удалены из
+              демо-пространства.
+            </p>
+            <div className="delete-rental-warning">
+              <Icon name="bell" size={17} />
+              <span>Сам договор у поставщика отменён не будет.</span>
             </div>
-          </article>
-          <article className="panel documents">
-            <div className="panel-head">
-              <div>
-                <span className="overline">ДОКУМЕНТЫ</span>
-                <h3>Готовность поездки</h3>
-              </div>
-              <strong>100%</strong>
-            </div>
-            {["Билеты", "Страховка", "Бронь отеля"].map((item) => (
-              <button key={item} onClick={() => toast(`${item}: документ открыт`)}>
-                <Icon name="check" size={17} />
-                <span>{item}</span>
-                <Icon name="chevron" size={15} />
+            <div className="delete-rental-actions">
+              <button className="secondary-button" onClick={() => setDeletingRental(null)}>
+                Оставить
               </button>
-            ))}
-          </article>
-        </aside>
-      </div>
+              <button
+                className="danger-button"
+                onClick={() => {
+                  setRentals((current) =>
+                    current.filter((rental) => rental.id !== deletingRental.id),
+                  );
+                  setDeletingRental(null);
+                  toast("Аренда удалена");
+                }}
+              >
+                Удалить аренду
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reminderBooking && (
+        <div className="modal-backdrop" onMouseDown={() => setReminderBooking(null)}>
+          <div className="modal reminder-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <button
+              className="icon-button modal-close"
+              onClick={() => setReminderBooking(null)}
+              aria-label="Закрыть"
+            >
+              <Icon name="close" />
+            </button>
+            <div className="modal-mark reminder">
+              <Icon name="bell" size={23} />
+            </div>
+            <p className="eyebrow">SMS-НАПОМИНАНИЕ</p>
+            <h2>Когда напомнить?</h2>
+            <p className="modal-subtitle">
+              {reminderBooking} · сообщение придёт на +7 ••• •••-42-18
+            </p>
+            <div className="reminder-options">
+              {["За 1 час", "За 3 часа", "За 1 день", "За 2 дня"].map((item) => (
+                <button
+                  className={reminderTime === item ? "active" : ""}
+                  onClick={() => setReminderTime(item)}
+                  key={item}
+                >
+                  <span>{item}</span>
+                  <i>{reminderTime === item && <em />}</i>
+                </button>
+              ))}
+            </div>
+            <button className="custom-reminder" onClick={() => setReminderTime("Своё время")}>
+              <Icon name="calendar" size={17} />
+              <span>Настроить дату и время</span>
+              <Icon name="chevron" size={15} />
+            </button>
+            {reminderTime === "Своё время" && (
+              <div className="custom-reminder-fields">
+                <input type="date" defaultValue="2025-06-22" />
+                <input type="time" defaultValue="16:00" />
+              </div>
+            )}
+            <button
+              className="primary wide"
+              onClick={() => {
+                setReminderBooking(null);
+                toast(`SMS придёт: ${reminderTime.toLowerCase()}`);
+              }}
+            >
+              Сохранить напоминание <Icon name="check" size={17} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2871,7 +3906,7 @@ function AstraChat({
 }
 
 export default function App() {
-  const [active, setActive] = useState("Главная");
+  const [active, setActive] = useState("Бронирования");
   const [modal, setModal] = useState<PlanKind | null>(null);
   const [notice, setNotice] = useState(false);
   const [planner, setPlanner] = useState(false);
@@ -3375,7 +4410,7 @@ export default function App() {
           onClose={() => setModal(null)}
           onCreated={() => {
             const success = {
-              booking: "Бронирование сохранено",
+              booking: "Аренда запланирована",
               event: "Событие запланировано",
               task: "Задача добавлена",
               goal: "Цель накопления создана",
