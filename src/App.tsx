@@ -2110,177 +2110,895 @@ function BookingsPage({ plan, toast }: { plan: () => void; toast: (text: string)
   );
 }
 
+type LedgerRow = {
+  id: number;
+  date: string;
+  title: string;
+  kind: "income" | "expense";
+  category: string;
+  amount: number;
+};
+
+function formatMoney(value: number) {
+  return `${new Intl.NumberFormat("ru-RU").format(value)} ₽`;
+}
+
+const budgetToday = 16;
+
+function ledgerDay(date: string) {
+  return Number(date.split(" ")[0]);
+}
+
+function ledgerMonth(date: string) {
+  return date.split(" ")[1] ?? "";
+}
+
+function sumRows(rows: LedgerRow[], kind: LedgerRow["kind"], month?: string, maxDay?: number) {
+  return rows.reduce((sum, row) => {
+    if (row.kind !== kind) return sum;
+    if (month && ledgerMonth(row.date) !== month) return sum;
+    if (maxDay != null && ledgerDay(row.date) > maxDay) return sum;
+    return sum + row.amount;
+  }, 0);
+}
+
+const statementMonths = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+
+const statementBanks = [
+  { id: "sber", name: "Сбер" },
+  { id: "tbank", name: "Т-Банк" },
+  { id: "alfa", name: "Альфа-Банк" },
+  { id: "vtb", name: "ВТБ" },
+  { id: "gpb", name: "Газпромбанк" },
+  { id: "raif", name: "Райффайзен" },
+  { id: "sovcom", name: "Совкомбанк" },
+  { id: "rshb", name: "Россельхозбанк" },
+  { id: "mts", name: "МТС Банк" },
+  { id: "ozon", name: "Ozon Банк" },
+  { id: "yandex", name: "Яндекс Банк" },
+  { id: "pochta", name: "Почта Банк" },
+];
+
+function BankLogo({ id }: { id: string }) {
+  const frame = {
+    className: "bank-logo",
+    viewBox: "0 0 36 36",
+    "aria-hidden": true as const,
+  };
+  if (id === "sber") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#21A038" />
+        <path d="M10 18.5 15.2 24 26 12" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (id === "tbank") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#FFDD2D" />
+        <path d="M9 11h18M18 11v15" fill="none" stroke="#111" strokeWidth="3.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (id === "alfa") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#EF3124" />
+        <path d="M18 8 26 27h-3.2l-1.5-3.6h-6.6L13.2 27H10L18 8Zm-3.2 12.4h6.4L18 13.2l-3.2 7.2Z" fill="#fff" />
+      </svg>
+    );
+  }
+  if (id === "vtb") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#0A2896" />
+        <text x="18" y="23" textAnchor="middle" fill="#fff" fontSize="11" fontWeight="700">ВТБ</text>
+      </svg>
+    );
+  }
+  if (id === "gpb") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#1D4E89" />
+        <path d="M18 7c3 4 7 7.5 7 13a7 7 0 0 1-14 0c0-5.5 4-9 7-13Z" fill="#7EC8E3" />
+        <path d="M18 14c1.6 2.2 3.4 4 3.4 6.4a3.4 3.4 0 0 1-6.8 0C14.6 18 16.4 16.2 18 14Z" fill="#fff" />
+      </svg>
+    );
+  }
+  if (id === "raif") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#FFE100" />
+        <path d="M8 24 18 9l10 15H8Z" fill="#111" />
+      </svg>
+    );
+  }
+  if (id === "sovcom") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#D11F3A" />
+        <path d="M0 18h36v7c0 6-5 11-11 11H11C5 36 0 31 0 25v-7Z" fill="#123A8C" />
+        <circle cx="18" cy="16" r="4" fill="#fff" />
+      </svg>
+    );
+  }
+  if (id === "rshb") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#2E7D32" />
+        <path d="M18 8v20M13 12c2 2 3 4 5 6M23 12c-2 2-3 4-5 6M12 18c2.2 1.2 4 1.6 6 1.6S21.8 19.2 24 18" fill="none" stroke="#E8F5E9" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (id === "mts") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#E30611" />
+        <ellipse cx="18" cy="19" rx="7" ry="9" fill="#fff" />
+      </svg>
+    );
+  }
+  if (id === "ozon") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#005BFF" />
+        <circle cx="18" cy="18" r="8" fill="none" stroke="#fff" strokeWidth="3" />
+      </svg>
+    );
+  }
+  if (id === "yandex") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#FC3F1D" />
+        <circle cx="16" cy="16" r="6" fill="none" stroke="#fff" strokeWidth="2.4" />
+        <path d="M20.5 20.5 26 26" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (id === "pochta") {
+    return (
+      <svg {...frame}>
+        <rect width="36" height="36" rx="11" fill="#1A2B7B" />
+        <rect x="8" y="12" width="20" height="13" rx="2" fill="#fff" />
+        <path d="M8 13.5 18 21l10-7.5" fill="none" stroke="#1A2B7B" strokeWidth="1.6" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...frame}>
+      <rect width="36" height="36" rx="11" fill="#29483a" />
+    </svg>
+  );
+}
+
+function statementDate(raw: string) {
+  const iso = raw.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${Number(iso[3])} ${statementMonths[Number(iso[2]) - 1]}`;
+  const dotted = raw.match(/(\d{1,2})[./](\d{1,2})[./](\d{2,4})/);
+  if (dotted) return `${Number(dotted[1])} ${statementMonths[Number(dotted[2]) - 1] ?? "июн"}`;
+  const named = raw.toLowerCase().match(/(\d{1,2})\s+(янв|фев|мар|апр|ма[йя]|июн|июл|авг|сен|окт|ноя|дек)/);
+  if (named) return `${Number(named[1])} ${named[2] === "май" ? "мая" : named[2]}`;
+  return "16 июн";
+}
+
+function splitCsvLine(line: string, delimiter: string) {
+  const cells: string[] = [];
+  let current = "";
+  let quoted = false;
+  for (const char of line) {
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (char === delimiter && !quoted) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function parseStatement(text: string) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return [];
+  const sample = lines.slice(0, 5).join("\n");
+  const delimiter = (sample.match(/;/g) || []).length >= (sample.match(/,/g) || []).length ? ";" : ",";
+  const table = lines.map((line) => splitCsvLine(line, delimiter));
+  const header = table[0].map((cell) => cell.toLowerCase());
+  const hasHeader = header.some((cell) => /дата|сумм|описан|назнач|категор/.test(cell));
+  const body = hasHeader ? table.slice(1) : table;
+  const dateIndex = hasHeader ? Math.max(header.findIndex((cell) => cell.includes("дата")), 0) : 0;
+  const amountIndex = hasHeader ? Math.max(header.findIndex((cell) => cell.includes("сумм")), 0) : 1;
+  const titleIndex = hasHeader
+    ? (() => {
+        const named = header.findIndex(
+          (cell, index) =>
+            index !== dateIndex && index !== amountIndex && /описан|назнач|коммент|получател|контрагент/.test(cell),
+        );
+        if (named >= 0) return named;
+        const other = header.findIndex((cell, index) => index !== dateIndex && index !== amountIndex);
+        return other >= 0 ? other : 2;
+      })()
+    : 2;
+  return body
+    .flatMap((cells) => {
+      const rawAmount = (cells[amountIndex] ?? "").replace(/\s/g, "").replace(",", ".");
+      const amount = Number(rawAmount);
+      if (!rawAmount || !Number.isFinite(amount) || amount === 0) return [];
+      const title = (cells[titleIndex] || "Операция из выписки").replace(/^"|"$/g, "");
+      const expense = amount < 0;
+      return [
+        {
+          date: statementDate(cells[dateIndex] ?? ""),
+          title,
+          kind: expense ? ("expense" as const) : ("income" as const),
+          category: expense ? "Другое" : /зарплат/i.test(title) ? "Стабильный" : "Пассивный",
+          amount: Math.abs(amount),
+        },
+      ];
+    })
+    .slice(0, 200);
+}
+
+type ChartDay = { month: number; day: number };
+
+const chartMonthLength = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function chartDays(start: ChartDay, end: ChartDay) {
+  const days: ChartDay[] = [];
+  let month = start.month;
+  let day = start.day;
+  while (month < end.month || (month === end.month && day <= end.day)) {
+    days.push({ month, day });
+    day += 1;
+    if (day > chartMonthLength[month]) {
+      month += 1;
+      day = 1;
+    }
+  }
+  return days;
+}
+
+function cumulativeSeries(
+  rows: LedgerRow[],
+  kind: LedgerRow["kind"],
+  start: ChartDay,
+  end: ChartDay,
+  until: ChartDay,
+) {
+  const totals = new Map<string, number>();
+  for (const row of rows) {
+    if (row.kind !== kind) continue;
+    const [dayText, monthText] = row.date.split(" ");
+    const month = statementMonths.indexOf(monthText) + 1;
+    const day = Number(dayText);
+    if (!month || !day) continue;
+    const key = `${month}-${day}`;
+    totals.set(key, (totals.get(key) ?? 0) + row.amount);
+  }
+  let sum = 0;
+  let open = true;
+  return chartDays(start, end).map((item) => {
+    if (!open) return null;
+    sum += totals.get(`${item.month}-${item.day}`) ?? 0;
+    if (item.month === until.month && item.day === until.day) open = false;
+    return sum;
+  });
+}
+
+function ratioSeries(income: Array<number | null>, expense: Array<number | null>) {
+  return income.map((value, index) => {
+    const spent = expense[index];
+    if (value == null || spent == null) return null;
+    if (spent <= 0) return value <= 0 ? 0 : null;
+    return value / spent;
+  });
+}
+
+function chartRatioLabel(value: number) {
+  if (value <= 0) return "0";
+  const rounded = Math.round(value * 10) / 10;
+  return `${String(rounded).replace(".", ",")}×`;
+}
+
+function chartAxisLabel(value: number) {
+  if (value >= 1000) {
+    const compact = value / 1000;
+    const rounded = compact >= 10 ? Math.round(compact) : Math.round(compact * 10) / 10;
+    return `${String(rounded).replace(".", ",")}к`;
+  }
+  return new Intl.NumberFormat("ru-RU").format(Math.round(value));
+}
+
+function niceChartMax(value: number) {
+  if (value <= 0) return 1000;
+  const power = 10 ** Math.floor(Math.log10(value));
+  const step = power / 2;
+  return Math.ceil(value / step) * step;
+}
+
+function chartGeometry(values: Array<number | null>, max: number, domain: number) {
+  const width = 700;
+  const top = 16;
+  const height = 140;
+  const points = values.flatMap((value, index) => {
+    if (value == null) return [];
+    const x = domain <= 1 ? 0 : (index / (domain - 1)) * width;
+    const y = top + height - (value / max) * height;
+    return [{ x, y }];
+  });
+  if (!points.length) return { line: "", area: "", end: null as { x: number; y: number } | null };
+  const line = points
+    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(" ");
+  const first = points[0];
+  const last = points[points.length - 1];
+  const area =
+    points.length > 1
+      ? `${line} L${last.x.toFixed(1)} ${top + height} L${first.x.toFixed(1)} ${top + height} Z`
+      : "";
+  return { line, area, end: last };
+}
+
 function BudgetPage({ toast }: { toast: (text: string) => void }) {
-  const [period, setPeriod] = useState("Месяц");
+  const [rows, setRows] = useState<LedgerRow[]>([
+    { id: 1, date: "5 июн", title: "Дивиденды", kind: "income", category: "Пассивный", amount: 8600 },
+    { id: 2, date: "12 июн", title: "Проценты по вкладу", kind: "income", category: "Пассивный", amount: 4200 },
+    { id: 10, date: "16 июн", title: "Зарплата", kind: "income", category: "Стабильный", amount: 245000 },
+    { id: 11, date: "16 июн", title: "The Lumiares", kind: "expense", category: "Жильё", amount: 32400 },
+    { id: 12, date: "15 июн", title: "Continente", kind: "expense", category: "Еда", amount: 4820 },
+    { id: 13, date: "15 июн", title: "Lisboa Bikes", kind: "expense", category: "Транспорт", amount: 1400 },
+    { id: 14, date: "12 июн", title: "Dear Breakfast", kind: "expense", category: "Еда", amount: 1240 },
+    { id: 15, date: "8 июн", title: "Second Home", kind: "expense", category: "Работа", amount: 4000 },
+    { id: 16, date: "10 мая", title: "Проценты по вкладу", kind: "income", category: "Пассивный", amount: 3900 },
+    { id: 17, date: "18 мая", title: "Зарплата", kind: "income", category: "Стабильный", amount: 245000 },
+    { id: 18, date: "12 мая", title: "Перелёт", kind: "expense", category: "Транспорт", amount: 28600 },
+    { id: 19, date: "2 июн", title: "Аренда, май", kind: "expense", category: "Жильё", amount: 62000 },
+    { id: 20, date: "4 апр", title: "Жильё, апрель", kind: "expense", category: "Жильё", amount: 58000 },
+  ]);
+  const [adding, setAdding] = useState(false);
+  const [entryKind, setEntryKind] = useState<"income" | "expense">("income");
+  const [entryCategory, setEntryCategory] = useState("Пассивный");
+  const [entryTitle, setEntryTitle] = useState("");
+  const [entryAmount, setEntryAmount] = useState("");
+  const [bankOpen, setBankOpen] = useState(false);
+  const [statementBank, setStatementBank] = useState<(typeof statementBanks)[number] | null>(null);
+  const [statementFile, setStatementFile] = useState("");
+  const statementInput = useRef<HTMLInputElement>(null);
+  const [chartKind, setChartKind] = useState<"ratio" | LedgerRow["kind"]>("ratio");
+  const [chartSpan, setChartSpan] = useState<"week" | "month" | "quarter">("month");
+
+  const ledger = [...rows].sort((left, right) => right.id - left.id);
+  const stableNow = sumRows(
+    rows.filter((row) => row.category === "Стабильный"),
+    "income",
+    "июн",
+    budgetToday,
+  );
+  const passiveNow = sumRows(
+    rows.filter((row) => row.category === "Пассивный"),
+    "income",
+    "июн",
+    budgetToday,
+  );
+  const incomeNow = stableNow + passiveNow;
+  const incomeThen = sumRows(rows, "income", "мая", budgetToday);
+  const expenseMonth = sumRows(rows, "expense", "июн", budgetToday);
+  const expenseWeek = rows.reduce((sum, row) => {
+    if (row.kind !== "expense" || ledgerMonth(row.date) !== "июн") return sum;
+    const day = ledgerDay(row.date);
+    return day >= 16 && day <= 22 ? sum + row.amount : sum;
+  }, 0);
+  const expenseQuarter = sumRows(rows, "expense");
+  const expenseThen = sumRows(rows, "expense", "мая", budgetToday);
+  const incomeDelta = incomeNow - incomeThen;
+  const expenseDelta = expenseMonth - expenseThen;
+  const chartToday = { month: 6, day: 16 };
+  const chartWindow =
+    chartSpan === "week"
+      ? {
+          current: { start: { month: 6, day: 16 }, end: { month: 6, day: 22 }, until: chartToday },
+          previous: { start: { month: 6, day: 9 }, end: { month: 6, day: 15 }, until: { month: 6, day: 15 } },
+          currentLabel: "16–22 июня",
+          previousLabel: "9–15 июня",
+          overline: "НЕДЕЛЯ",
+        }
+      : chartSpan === "quarter"
+        ? {
+            current: { start: { month: 4, day: 1 }, end: { month: 6, day: 30 }, until: chartToday },
+            previous: { start: { month: 1, day: 1 }, end: { month: 3, day: 31 }, until: { month: 3, day: 31 } },
+            currentLabel: "Апрель — июнь",
+            previousLabel: "Январь — март",
+            overline: "3 МЕСЯЦА",
+          }
+        : {
+            current: { start: { month: 6, day: 1 }, end: { month: 6, day: 30 }, until: chartToday },
+            previous: { start: { month: 5, day: 1 }, end: { month: 5, day: 31 }, until: { month: 5, day: 31 } },
+            currentLabel: "Июнь",
+            previousLabel: "Май",
+            overline: "МЕСЯЦ",
+          };
+  const chartDomain = Math.max(
+    chartDays(chartWindow.current.start, chartWindow.current.end).length,
+    chartDays(chartWindow.previous.start, chartWindow.previous.end).length,
+  );
+  const chartCurrent =
+    chartKind === "ratio"
+      ? ratioSeries(
+          cumulativeSeries(rows, "income", chartWindow.current.start, chartWindow.current.end, chartWindow.current.until),
+          cumulativeSeries(rows, "expense", chartWindow.current.start, chartWindow.current.end, chartWindow.current.until),
+        )
+      : cumulativeSeries(rows, chartKind, chartWindow.current.start, chartWindow.current.end, chartWindow.current.until);
+  const chartPrevious =
+    chartKind === "ratio"
+      ? ratioSeries(
+          cumulativeSeries(rows, "income", chartWindow.previous.start, chartWindow.previous.end, chartWindow.previous.until),
+          cumulativeSeries(rows, "expense", chartWindow.previous.start, chartWindow.previous.end, chartWindow.previous.until),
+        )
+      : cumulativeSeries(rows, chartKind, chartWindow.previous.start, chartWindow.previous.end, chartWindow.previous.until);
+  const chartMax = niceChartMax(
+    Math.max(0, ...chartCurrent.filter((value): value is number => value != null), ...chartPrevious.filter((value): value is number => value != null)),
+  );
+  const chartNow = chartGeometry(chartCurrent, chartMax, chartDomain);
+  const chartThen = chartGeometry(chartPrevious, chartMax, chartDomain);
+  const chartColor = chartKind === "income" ? "#2f6b4f" : chartKind === "ratio" ? "#355f78" : "#c46a3a";
+  const chartScale = chartKind === "ratio" ? chartRatioLabel : chartAxisLabel;
+  const chartParity = chartKind === "ratio" && chartMax > 1 ? 16 + 140 - (1 / chartMax) * 140 : null;
+  const chartTicks =
+    chartSpan === "week"
+      ? ["16", "17", "18", "19", "20", "21", "22"].map((label, index) => ({
+          label,
+          at: index / (chartDomain - 1),
+        }))
+      : chartSpan === "quarter"
+        ? [
+            { label: "Апр", at: 0 },
+            { label: "Май", at: 30 / (chartDomain - 1) },
+            { label: "Июн", at: 61 / (chartDomain - 1) },
+          ]
+        : [1, 8, 16, 24, 30].map((day) => ({
+            label: day === 1 ? "1 июн" : String(day),
+            at: (day - 1) / (chartDomain - 1),
+          }));
+
+  function openEntry(kind: "income" | "expense") {
+    if (adding && entryKind === kind) {
+      setAdding(false);
+      return;
+    }
+    setEntryKind(kind);
+    setEntryCategory(kind === "income" ? "Пассивный" : "Еда");
+    setEntryTitle("");
+    setEntryAmount("");
+    setAdding(true);
+  }
+
+  function saveEntry() {
+    const amount = Number(entryAmount.replace(/\s/g, "").replace(",", "."));
+    if (!entryTitle.trim() || !Number.isFinite(amount) || amount <= 0) return;
+    setRows((current) => [
+      {
+        id: Date.now(),
+        date: "16 июн",
+        title: entryTitle.trim(),
+        kind: entryKind,
+        category: entryCategory,
+        amount,
+      },
+      ...current,
+    ]);
+    setEntryTitle("");
+    setEntryAmount("");
+    setAdding(false);
+    toast(entryKind === "income" ? "Доход внесён" : "Расход внесён");
+  }
+
+  useEffect(() => {
+    if (!bankOpen && !adding) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setBankOpen(false);
+      setAdding(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [bankOpen, adding]);
+
+  async function importStatement(file: File) {
+    if (!statementBank) {
+      setBankOpen(true);
+      return;
+    }
+    setStatementFile(file.name);
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (extension !== "csv" && extension !== "txt") {
+      toast(`${statementBank.name}: файл ${file.name} принят`);
+      return;
+    }
+    const parsed = parseStatement(await file.text());
+    if (!parsed.length) {
+      toast("В CSV не нашлось строк с датой и суммой");
+      return;
+    }
+    setRows((current) => [
+      ...parsed.map((row, index) => ({ ...row, id: Date.now() + index })),
+      ...current,
+    ]);
+    toast(`${statementBank.name}: ${parsed.length} операций из выписки`);
+  }
+
+  function removeRow(row: LedgerRow) {
+    setRows((current) => current.filter((item) => item.id !== row.id));
+    toast(`${row.title} удалено из таблицы`);
+  }
+
   return (
     <div className="section-page">
       <PageTitle
         label="ФИНАНСЫ · ИЮНЬ"
         title="Бюджет"
-        description="Планируйте доходы, контролируйте расходы и сохраняйте финансовый ритм."
-        action={
-          <div className="segmented page-segment">
-            {["Месяц", "Квартал", "Год"].map((item) => (
-              <button
-                className={period === item ? "active" : ""}
-                onClick={() => setPeriod(item)}
-                key={item}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-        }
+        description="Доход и расход на сегодня, динамика месяца и сравнение с тем же числом в мае."
       />
-      <div className="stats-row">
-        <StatCard label="Доходы" value="245 000 ₽" note="+8% к прошлому месяцу" icon="briefcase" />
-        <StatCard
-          label="Расходы"
-          value="179 180 ₽"
-          note="68% месячного плана"
-          icon="wallet"
-          tone="orange"
-        />
-        <StatCard
-          label="Свободно"
-          value="65 820 ₽"
-          note="После всех обязательств"
-          icon="sparkle"
-          tone="blue"
-        />
-        <StatCard
-          label="Регулярные"
-          value="72 400 ₽"
-          note="Следующий платёж 18 июня"
-          icon="calendar"
-          tone="purple"
-        />
-      </div>
-      <div className="section-grid budget-layout">
-        <article className="panel workspace-panel chart-panel">
-          <div className="workspace-head">
-            <div>
-              <span className="overline">ПЛАН И ФАКТ</span>
-              <h3>Динамика месяца</h3>
-            </div>
-            <div className="chart-legend">
-              <span>
-                <i /> Доход
-              </span>
-              <span>
-                <i /> Расход
-              </span>
-            </div>
-          </div>
-          <div className="balance-chart">
-            <div className="chart-scale">
-              <span>250к</span>
-              <span>125к</span>
-              <span>0</span>
-            </div>
-            <svg
-              viewBox="0 0 700 210"
-              preserveAspectRatio="none"
-              aria-label="График доходов и расходов"
-            >
-              <defs>
-                <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" stopColor="#5e8772" stopOpacity=".25" />
-                  <stop offset="1" stopColor="#5e8772" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <path className="chart-grid-line" d="M0 30H700M0 105H700M0 180H700" />
-              <path
-                className="income-area"
-                d="M0 174 C80 165 90 150 145 148 S220 50 280 52 S390 50 430 47 S530 34 700 30 L700 180 L0 180Z"
-              />
-              <path
-                className="income-line"
-                d="M0 174 C80 165 90 150 145 148 S220 50 280 52 S390 50 430 47 S530 34 700 30"
-              />
-              <path
-                className="expense-line"
-                d="M0 178 C90 165 120 155 170 142 S270 128 330 114 S450 96 510 82 S620 67 700 58"
-              />
-            </svg>
-            <div className="chart-days">
-              <span>1 июн</span>
-              <span>8 июн</span>
-              <span>16 июн</span>
-              <span>24 июн</span>
-              <span>30 июн</span>
-            </div>
-          </div>
-          <div className="astra-callout">
-            <Icon name="sparkle" size={19} />
-            <div>
-              <strong>Прогноз Астры</strong>
-              <p>К концу месяца баланс составит около 84 300 ₽ — на 18 600 ₽ выше цели.</p>
-            </div>
-            <button onClick={() => toast("Открыт финансовый прогноз")}>Посмотреть</button>
-          </div>
-        </article>
-        <article className="panel workspace-panel categories-panel">
-          <div className="workspace-head">
-            <div>
-              <span className="overline">КАТЕГОРИИ</span>
-              <h3>Расходы по плану</h3>
-            </div>
-            <button className="round-plus" onClick={() => toast("Создание категории открыто")}>
-              <Icon name="plus" size={17} />
+
+      <div className="income-board">
+        <article className="panel income-card">
+          <div className="income-card-head">
+            <span className="overline">ТЕКУЩИЙ ДОХОД</span>
+            <button className="primary entry-income" onClick={() => openEntry("income")}>
+              Внести <Icon name="plus" size={15} />
             </button>
           </div>
-          {[
-            ["Жильё", "82%", "64 200 ₽", "78 000 ₽", "purple"],
-            ["Еда", "54%", "21 700 ₽", "40 000 ₽", "orange"],
-            ["Транспорт", "39%", "11 800 ₽", "30 000 ₽", "blue"],
-            ["Подписки", "91%", "9 120 ₽", "10 000 ₽", "green"],
-          ].map(([name, width, value, total, tone]) => (
+          <strong>{formatMoney(incomeNow)}</strong>
+          <p>На 16 июня: стабильный и пассивный.</p>
+          <ul>
+            <li>
+              <span>Стабильный</span>
+              <b>{formatMoney(stableNow)}</b>
+            </li>
+            <li>
+              <span>Пассивный</span>
+              <b>{formatMoney(passiveNow)}</b>
+            </li>
+          </ul>
+        </article>
+
+        <article className="panel income-card expense-now">
+          <div className="income-card-head">
+            <span className="overline">ТЕКУЩИЙ РАСХОД</span>
+            <button className="primary entry-expense" onClick={() => openEntry("expense")}>
+              Внести <Icon name="plus" size={15} />
+            </button>
+          </div>
+          <strong>{formatMoney(expenseMonth)}</strong>
+          <p>С 1 по 16 июня.</p>
+          <ul>
+            <li>
+              <span>За месяц</span>
+              <b>{formatMoney(expenseMonth)}</b>
+            </li>
+            <li>
+              <span>За неделю</span>
+              <b>{formatMoney(expenseWeek)}</b>
+            </li>
+            <li>
+              <span>За 3 месяца</span>
+              <b>{formatMoney(expenseQuarter)}</b>
+            </li>
+          </ul>
+        </article>
+      </div>
+
+      {adding && (
+        <div className="modal-backdrop" onMouseDown={() => setAdding(false)}>
+          <form
+            className={`modal entry-modal ${entryKind}`}
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveEntry();
+            }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="entry-title"
+          >
+            <button type="button" className="icon-button modal-close" onClick={() => setAdding(false)} aria-label="Закрыть">
+              <Icon name="close" />
+            </button>
+            <div className={`modal-mark ${entryKind}`}>
+              <Icon name={entryKind === "income" ? "wallet" : "shopping"} size={22} />
+            </div>
+            <p className="eyebrow">{entryKind === "income" ? "ДОХОД · 16 ИЮНЯ" : "РАСХОД · 16 ИЮНЯ"}</p>
+            <h2 id="entry-title">{entryKind === "income" ? "Внести доход" : "Внести расход"}</h2>
+            <p className="modal-subtitle">
+              {entryKind === "income"
+                ? "Сумма встанет в стабильный или пассивный доход и появится в таблице."
+                : "Сумма войдёт в месяц, неделю и три месяца и появится в таблице."}
+            </p>
+            <div className="entry-categories" role="group" aria-label="Категория">
+              {(entryKind === "income"
+                ? ["Стабильный", "Пассивный"]
+                : ["Жильё", "Еда", "Транспорт", "Работа", "Другое"]
+              ).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={entryCategory === item ? "active" : ""}
+                  onClick={() => setEntryCategory(item)}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            <label className="entry-field">
+              <span className="field-label">{entryKind === "income" ? "Источник" : "На что"}</span>
+              <input
+                value={entryTitle}
+                onChange={(event) => setEntryTitle(event.target.value)}
+                placeholder={entryKind === "income" ? "Дивиденды, кэшбэк…" : "Кафе, аренда…"}
+                aria-label="Название операции"
+                autoFocus
+              />
+            </label>
+            <label className="entry-field">
+              <span className="field-label">Сумма, ₽</span>
+              <input
+                className="entry-amount"
+                value={entryAmount}
+                onChange={(event) => setEntryAmount(event.target.value)}
+                placeholder="0"
+                inputMode="decimal"
+                aria-label="Сумма"
+              />
+            </label>
             <button
-              className="category-row"
-              key={name}
-              onClick={() => toast(`${name}: аналитика открыта`)}
+              className={entryKind === "income" ? "primary wide entry-income" : "primary wide entry-expense"}
+              type="submit"
             >
-              <div>
-                <strong>{name}</strong>
-                <span>
-                  {value} <small>из {total}</small>
-                </span>
-              </div>
-              <i>
-                <em className={tone} style={{ width }} />
-              </i>
+              Добавить <Icon name="check" size={17} />
             </button>
-          ))}
-        </article>
-      </div>
-      <article className="panel recurring-panel">
+          </form>
+        </div>
+      )}
+
+      <article className="panel workspace-panel chart-panel">
         <div className="workspace-head">
           <div>
-            <span className="overline">РЕГУЛЯРНЫЕ ОПЕРАЦИИ</span>
-            <h3>Ближайшие списания и доходы</h3>
+            <span className="overline">{chartWindow.overline}</span>
+            <h3>Динамика</h3>
           </div>
-          <button className="plain-button" onClick={() => toast("Календарь платежей открыт")}>
-            Календарь <Icon name="chevron" size={16} />
-          </button>
+          <div className="chart-toolbar">
+            <div className="segmented" role="group" aria-label="Что показать">
+              <button
+                className={chartKind === "ratio" ? "active-ratio" : ""}
+                onClick={() => setChartKind("ratio")}
+              >
+                Доход / расход
+              </button>
+              <button
+                className={chartKind === "expense" ? "active-expense" : ""}
+                onClick={() => setChartKind("expense")}
+              >
+                Расход
+              </button>
+              <button
+                className={chartKind === "income" ? "active-income" : ""}
+                onClick={() => setChartKind("income")}
+              >
+                Доход
+              </button>
+            </div>
+            <div className="segmented" role="group" aria-label="Период">
+              {(
+                [
+                  ["week", "Неделя"],
+                  ["month", "Месяц"],
+                  ["quarter", "3 месяца"],
+                ] as const
+              ).map(([span, label]) => (
+                <button
+                  key={span}
+                  className={chartSpan === span ? "active" : ""}
+                  onClick={() => setChartSpan(span)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-        <div className="recurring-grid">
-          {[
-            ["18 июн", "Figma Professional", "Подписки", "− 1 490 ₽"],
-            ["21 июн", "Аренда квартиры", "Жильё", "− 62 000 ₽"],
-            ["25 июн", "Аванс", "Доход", "+ 95 000 ₽"],
-          ].map(([date, title, note, value]) => (
-            <button key={title} onClick={() => toast(`${title}: операция открыта`)}>
-              <time>{date}</time>
-              <div>
-                <strong>{title}</strong>
-                <small>{note}</small>
-              </div>
-              <b>{value}</b>
-            </button>
-          ))}
+        <div className="chart-legend">
+          <span>
+            <i className="solid" style={{ background: chartColor }} /> {chartWindow.currentLabel}
+          </span>
+          <span>
+            <i className="dashed" style={{ borderColor: chartColor }} /> {chartWindow.previousLabel}
+          </span>
+          {chartKind === "ratio" && <span className="chart-ratio-note">Доход на 1 ₽ расхода. Серая линия — паритет.</span>}
+        </div>
+        <div className="balance-chart">
+          <div className="chart-scale">
+            <span>{chartScale(chartMax)}</span>
+            <span>{chartScale(chartMax / 2)}</span>
+            <span>0</span>
+          </div>
+          <svg viewBox="0 0 700 168" role="img" aria-label={`Динамика: ${chartWindow.currentLabel} и ${chartWindow.previousLabel}`}>
+            <defs>
+              <linearGradient id="chart-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor={chartColor} stopOpacity=".22" />
+                <stop offset="1" stopColor={chartColor} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path className="chart-grid-line" d="M0 16H700M0 86H700M0 156H700" />
+            {chartParity != null && <path className="chart-parity" d={`M0 ${chartParity.toFixed(1)}H700`} />}
+            {chartThen.line && <path className="chart-compare" d={chartThen.line} stroke={chartColor} />}
+            {chartNow.area && <path d={chartNow.area} fill="url(#chart-area)" />}
+            {chartNow.line && <path className="chart-current" d={chartNow.line} stroke={chartColor} />}
+            {chartNow.end && <circle cx={chartNow.end.x} cy={chartNow.end.y} r="3.5" fill={chartColor} />}
+          </svg>
+          <div className="chart-days chart-days-plot">
+            {chartTicks.map((tick) => (
+              <span key={tick.label} style={{ left: `${tick.at * 100}%` }}>
+                {tick.label}
+              </span>
+            ))}
+          </div>
         </div>
       </article>
+
+      <article className="panel month-compare">
+        <div>
+          <span className="overline">НА 16 ИЮНЯ</span>
+          <h3>Сравнение с прошлым месяцем</h3>
+          <p>Те же числа: 1–16 июня против 1–16 мая.</p>
+        </div>
+        <div className="compare-metrics">
+          <div>
+            <span>Доход</span>
+            <strong className={incomeDelta >= 0 ? "sum-in" : "sum-out"}>
+              {incomeDelta >= 0 ? "+" : "−"} {formatMoney(Math.abs(incomeDelta))}
+            </strong>
+            <small>
+              {formatMoney(incomeNow)} сейчас · {formatMoney(incomeThen)} в мае
+            </small>
+          </div>
+          <div>
+            <span>Расход</span>
+            <strong className={expenseDelta <= 0 ? "sum-in" : "sum-out"}>
+              {expenseDelta >= 0 ? "+" : "−"} {formatMoney(Math.abs(expenseDelta))}
+            </strong>
+            <small>
+              {formatMoney(expenseMonth)} сейчас · {formatMoney(expenseThen)} в мае
+            </small>
+          </div>
+        </div>
+      </article>
+
+      <article className="panel ledger-panel">
+        <div className="workspace-head">
+          <div>
+            <span className="overline">ОПЕРАЦИИ</span>
+            <h3>Расходы и доходы</h3>
+          </div>
+        </div>
+        <div className="ledger-scroll">
+          <table className="ledger">
+            <thead>
+              <tr>
+                <th>Дата</th>
+                <th>Операция</th>
+                <th>Тип</th>
+                <th>Категория</th>
+                <th>Сумма</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.date}</td>
+                  <td>{row.title}</td>
+                  <td>
+                    <span className={row.kind === "income" ? "ledger-in" : "ledger-out"}>
+                      {row.kind === "income" ? "Доход" : "Расход"}
+                    </span>
+                  </td>
+                  <td>{row.category}</td>
+                  <td className={row.kind === "income" ? "sum-in" : "sum-out"}>
+                    {row.kind === "income" ? "+" : "−"} {formatMoney(row.amount)}
+                  </td>
+                  <td>
+                    <button
+                      className="ledger-delete"
+                      onClick={() => removeRow(row)}
+                      aria-label={`Удалить ${row.title}`}
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="panel statement-import">
+        <div>
+          <span className="overline">ВЫПИСКА</span>
+          <h3>Импорт из банка</h3>
+          <p>CSV, XLS или XLSX. Сначала выберите банк, затем загрузите файл. Строки CSV с датой и суммой попадут в таблицу.</p>
+          {statementFile && (
+            <p className="statement-file">
+              {statementBank?.name} · {statementFile}
+            </p>
+          )}
+        </div>
+        <div className="statement-actions">
+          <button type="button" className="statement-bank" onClick={() => setBankOpen(true)}>
+            {statementBank ? <BankLogo id={statementBank.id} /> : <span className="bank-logo bank-empty">?</span>}
+            <span>{statementBank ? statementBank.name : "Выбрать банк"}</span>
+          </button>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => (statementBank ? statementInput.current?.click() : setBankOpen(true))}
+          >
+            Загрузить файл
+          </button>
+          <input
+            ref={statementInput}
+            type="file"
+            accept=".csv,.xls,.xlsx,text/csv"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void importStatement(file);
+            }}
+          />
+        </div>
+      </article>
+
+      {bankOpen && (
+        <div className="modal-backdrop" onMouseDown={() => setBankOpen(false)}>
+          <div
+            className="modal statement-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bank-picker-title"
+          >
+            <button className="icon-button modal-close" onClick={() => setBankOpen(false)} aria-label="Закрыть">
+              <Icon name="close" />
+            </button>
+            <p className="eyebrow">БАНКИ РОССИИ</p>
+            <h2 id="bank-picker-title">Откуда выписка</h2>
+            <p className="modal-subtitle">CSV, XLS или XLSX. Формат колонок зависит от банка.</p>
+            <div className="bank-grid">
+              {statementBanks.map((bank) => (
+                <button
+                  key={bank.id}
+                  className={statementBank?.id === bank.id ? "active" : ""}
+                  onClick={() => {
+                    setStatementBank(bank);
+                    setBankOpen(false);
+                  }}
+                >
+                  <BankLogo id={bank.id} />
+                  <span>{bank.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3984,7 +4702,7 @@ function AstraChat({
 }
 
 export default function App() {
-  const [active, setActive] = useState("Бронирования");
+  const [active, setActive] = useState("Бюджет");
   const [modal, setModal] = useState<PlanKind | null>(null);
   const [notice, setNotice] = useState(false);
   const [planner, setPlanner] = useState(false);
