@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 type IconName =
   | "home"
@@ -21,7 +21,19 @@ type IconName =
   | "coffee"
   | "close"
   | "chevron"
-  | "sun";
+  | "sun"
+  | "mic"
+  | "play"
+  | "pause"
+  | "stop"
+  | "clip"
+  | "file"
+  | "bike"
+  | "clock"
+  | "panel"
+  | "user"
+  | "help"
+  | "logout";
 
 const paths: Record<IconName, ReactNode> = {
   home: (
@@ -135,6 +147,64 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
     </>
   ),
+  mic: (
+    <>
+      <rect x="9" y="3" width="6" height="12" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M9 21h6" />
+    </>
+  ),
+  play: <path d="m9 7 8 5-8 5V7Z" />,
+  pause: (
+    <>
+      <path d="M9 7v10M15 7v10" />
+    </>
+  ),
+  stop: <rect x="8" y="8" width="8" height="8" rx="1" />,
+  clip: (
+    <path d="m9 12.5 5.3-5.3a3 3 0 1 1 4.2 4.2l-7.2 7.2a5 5 0 0 1-7.1-7.1l7.5-7.5a2 2 0 0 1 2.8 2.8L7 14.3a1 1 0 0 0 1.4 1.4l6.5-6.5" />
+  ),
+  file: (
+    <>
+      <path d="M6 2.5h8l4 4V21H6V2.5Z" />
+      <path d="M14 2.5v5h4M9 12h6M9 16h5" />
+    </>
+  ),
+  bike: (
+    <>
+      <circle cx="5.5" cy="17" r="3.5" />
+      <circle cx="18.5" cy="17" r="3.5" />
+      <path d="m5.5 17 4-7 3.5 7h-7.5Zm7.5 0 3-9h3M9.5 10H14M8 7h3" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  panel: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M9 4v16M14 9l3 3-3 3" />
+    </>
+  ),
+  user: (
+    <>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.8 9a2.4 2.4 0 1 1 3.7 2c-1 .6-1.5 1.1-1.5 2.3M12 17h.01" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10" />
+    </>
+  ),
 };
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
@@ -208,6 +278,238 @@ function ProgressRing() {
         <span>бюджета</span>
       </div>
     </div>
+  );
+}
+
+function RentalTimer({
+  icon,
+  title,
+  note,
+  hours,
+  progress,
+  urgent,
+}: {
+  icon: IconName;
+  title: string;
+  note: string;
+  hours: number;
+  progress: number;
+  urgent?: boolean;
+}) {
+  const [remaining, setRemaining] = useState(() => hours * 60 * 60 + 32 * 60);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setRemaining((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const days = Math.floor(remaining / 86400);
+  const leftAfterDays = remaining % 86400;
+  const currentHours = Math.floor(leftAfterDays / 3600);
+  const minutes = Math.floor((leftAfterDays % 3600) / 60);
+
+  return (
+    <button className={`rental-timer ${urgent ? "urgent" : ""}`}>
+      <span
+        className="rental-progress"
+        style={{ "--progress": `${progress}%` } as React.CSSProperties}
+      >
+        <Icon name={icon} size={20} />
+      </span>
+      <div className="rental-copy">
+        <span>{urgent ? "СКОРО ЗАВЕРШИТСЯ" : "АКТИВНАЯ АРЕНДА"}</span>
+        <strong>{title}</strong>
+        <small>{note}</small>
+      </div>
+      <div className="countdown">
+        <div>
+          <strong>{String(days).padStart(2, "0")}</strong>
+          <span>дней</span>
+        </div>
+        <i>:</i>
+        <div>
+          <strong>{String(currentHours).padStart(2, "0")}</strong>
+          <span>часов</span>
+        </div>
+        <i>:</i>
+        <div>
+          <strong>{String(minutes).padStart(2, "0")}</strong>
+          <span>мин</span>
+        </div>
+      </div>
+      <Icon name="chevron" size={17} />
+    </button>
+  );
+}
+
+function DashboardWidgets({
+  toast,
+  openSection,
+}: {
+  toast: (text: string) => void;
+  openSection: (section: string) => void;
+}) {
+  return (
+    <section className="dashboard-widgets">
+      <article className="panel rentals-widget">
+        <div className="widget-heading">
+          <div>
+            <span className="overline">ВРЕМЯ ПОД КОНТРОЛЕМ</span>
+            <h3>Активные аренды</h3>
+          </div>
+          <button className="plain-button" onClick={() => openSection("Бронирования")}>
+            Все бронирования <Icon name="chevron" size={15} />
+          </button>
+        </div>
+        <div className="rentals-list">
+          <RentalTimer
+            icon="hotel"
+            title="The Lumiares"
+            note="Выезд 28 июня · до 11:00"
+            hours={134}
+            progress={68}
+          />
+          <RentalTimer
+            icon="bike"
+            title="Lisboa Bikes · City"
+            note="Вернуть в Praça do Comércio"
+            hours={28}
+            progress={88}
+            urgent
+          />
+        </div>
+      </article>
+
+      <article className="panel month-spend-widget">
+        <div className="widget-heading">
+          <div>
+            <span className="overline">ИЮНЬ · 68% БЮДЖЕТА</span>
+            <h3>Расходы в этом месяце</h3>
+          </div>
+          <button className="round-plus" onClick={() => openSection("Бюджет")}>
+            <Icon name="arrow" size={16} />
+          </button>
+        </div>
+        <div className="spend-total">
+          <div>
+            <strong>179 180 ₽</strong>
+            <span>из 263 500 ₽</span>
+          </div>
+          <span className="trend-down">−12% к маю</span>
+        </div>
+        <div className="spend-stack">
+          <i className="housing" />
+          <i className="food" />
+          <i className="transport" />
+          <i className="other" />
+        </div>
+        <div className="spend-categories">
+          {[
+            ["Жильё", "64 200 ₽", "housing"],
+            ["Еда", "21 700 ₽", "food"],
+            ["Транспорт", "11 800 ₽", "transport"],
+            ["Другое", "81 480 ₽", "other"],
+          ].map(([label, value, color]) => (
+            <div key={label}>
+              <i className={color} />
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+          ))}
+        </div>
+        <div className="spend-note">
+          <Icon name="sparkle" size={16} />
+          <span>На 18 600 ₽ лучше месячного плана</span>
+        </div>
+      </article>
+
+      <article className="panel events-widget">
+        <div className="widget-heading">
+          <div>
+            <span className="overline">КАЛЕНДАРЬ</span>
+            <h3>Запланированные события</h3>
+          </div>
+          <button className="round-plus" onClick={() => toast("Создание события открыто")}>
+            <Icon name="plus" size={16} />
+          </button>
+        </div>
+        <div className="dashboard-events">
+          {[
+            ["21", "ИЮН", "Перелёт в Лиссабон", "09:45 · SU 2682", "travel"],
+            ["01", "СЕН", "Road trip по Исландии", "12 дней · 4 участника", "personal"],
+            ["16", "НОЯ", "Web Summit 2025", "Лиссабон · Altice Arena", "work"],
+          ].map(([day, month, title, note, tone]) => (
+            <button key={title} onClick={() => openSection("Цели и события")}>
+              <time className={tone}>
+                <strong>{day}</strong>
+                <span>{month}</span>
+              </time>
+              <div>
+                <strong>{title}</strong>
+                <small>{note}</small>
+              </div>
+              <Icon name="chevron" size={16} />
+            </button>
+          ))}
+        </div>
+        <button className="widget-footer" onClick={() => openSection("Цели и события")}>
+          Открыть календарь <Icon name="arrow" size={15} />
+        </button>
+      </article>
+
+      <article className="panel upcoming-widget">
+        <div className="widget-heading">
+          <div>
+            <span className="overline">СЛЕДУЮЩИЕ 3 ДНЯ</span>
+            <h3>Ближайшие дела</h3>
+          </div>
+          <span className="soft-badge">5 задач</span>
+        </div>
+        <div className="upcoming-groups">
+          <div className="upcoming-group">
+            <span>СЕГОДНЯ</span>
+            <button onClick={() => openSection("Дела")}>
+              <i className="priority high" />
+              <div>
+                <strong>Отправить отчёт по проекту</strong>
+                <small>Работа · до 12:00</small>
+              </div>
+              <time>12:00</time>
+            </button>
+            <button onClick={() => openSection("Дела")}>
+              <i className="priority medium" />
+              <div>
+                <strong>Созвон с командой</strong>
+                <small>Google Meet · 45 минут</small>
+              </div>
+              <time>16:30</time>
+            </button>
+          </div>
+          <div className="upcoming-group">
+            <span>ЗАВТРА · 17 ИЮНЯ</span>
+            <button onClick={() => openSection("Дела")}>
+              <i className="priority low" />
+              <div>
+                <strong>Купить страховку</strong>
+                <small>Лиссабон · документы</small>
+              </div>
+              <time>10:00</time>
+            </button>
+            <button onClick={() => openSection("Дела")}>
+              <i className="priority medium" />
+              <div>
+                <strong>Забронировать трансфер</strong>
+                <small>Аэропорт → отель</small>
+              </div>
+              <time>18:00</time>
+            </button>
+          </div>
+        </div>
+        <button className="widget-footer" onClick={() => openSection("Дела")}>
+          Все задачи на доске <Icon name="arrow" size={15} />
+        </button>
+      </article>
+    </section>
   );
 }
 
@@ -1208,6 +1510,534 @@ function SettingsPage({ toast }: { toast: (text: string) => void }) {
   );
 }
 
+type ChatMessage = {
+  id: number;
+  role: "assistant" | "user";
+  text?: string;
+  audioUrl?: string;
+  audioDuration?: number;
+  attachments?: AttachedFile[];
+  time: string;
+};
+
+type AttachedFile = {
+  id: number;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+};
+
+function formatDuration(value: number) {
+  const minutes = Math.floor(value / 60);
+  return `${minutes}:${String(value % 60).padStart(2, "0")}`;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} КБ`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+}
+
+function VoiceMessage({ url, duration }: { url: string; duration: number }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const bars = [9, 16, 11, 22, 14, 25, 18, 10, 20, 27, 13, 23, 17, 9, 19, 14, 24, 12, 18, 8];
+
+  function togglePlayback() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playing) {
+      audio.pause();
+    } else {
+      void audio.play();
+    }
+  }
+
+  return (
+    <div className="voice-message">
+      <audio
+        ref={audioRef}
+        src={url}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setProgress(0);
+        }}
+        onTimeUpdate={(event) => {
+          const audio = event.currentTarget;
+          setProgress(audio.duration ? audio.currentTime / audio.duration : 0);
+        }}
+      />
+      <button onClick={togglePlayback} aria-label={playing ? "Пауза" : "Воспроизвести"}>
+        <Icon name={playing ? "pause" : "play"} size={17} />
+      </button>
+      <div className="voice-wave" aria-hidden="true">
+        {bars.map((height, index) => (
+          <i
+            className={index / bars.length <= progress ? "active" : ""}
+            style={{ height }}
+            key={`${height}-${index}`}
+          />
+        ))}
+      </div>
+      <span>{formatDuration(duration)}</span>
+    </div>
+  );
+}
+
+function getAstraResponse(message: string) {
+  const value = message.toLowerCase();
+  if (value.includes("прикреплены файлы")) {
+    return "Файлы получены. Я могу использовать их как документы поездки, чеки или материалы для задачи. В демо-режиме содержимое хранится только в этом диалоге.";
+  }
+  if (value.includes("бюдж") || value.includes("деньг") || value.includes("расход")) {
+    return "В июне у вас осталось 84 320 ₽. При текущем темпе расходов к концу месяца сохранится около 18 600 ₽ сверх плана. Могу помочь распределить эту сумму между копилками.";
+  }
+  if (value.includes("лиссаб") || value.includes("поезд") || value.includes("рейс")) {
+    return "До Лиссабона осталось 5 дней. Перелёт и The Lumiares подтверждены, документы готовы. Завтра в 09:45 откроется регистрация на рейс — я напомню.";
+  }
+  if (value.includes("зада") || value.includes("дел") || value.includes("сегодня")) {
+    return "Сегодня в фокусе 3 задачи. Самая срочная — отправить отчёт по проекту до 12:00. После неё советую заняться страховкой для поездки.";
+  }
+  if (value.includes("накоп") || value.includes("цель") || value.includes("копил")) {
+    return "Общий прогресс накоплений — 64%. Вы опережаете план на 12 дней. Ближайшая цель — Исландия: собрано 186 000 ₽ из 260 000 ₽.";
+  }
+  return "Я изучила ваши планы. Могу проверить поездки, оценить бюджет, расставить приоритеты в задачах или помочь создать новую цель. С чего начнём?";
+}
+
+function AstraChat({
+  onClose,
+  onToast,
+}: {
+  onClose: () => void;
+  onToast: (message: string) => void;
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 1,
+      role: "assistant",
+      text: "Доброе утро, Алексей. Я собрала всё важное на сегодня. До поездки в Лиссабон осталось 5 дней, а бюджет идёт лучше плана. Чем помочь?",
+      time: "09:41",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [typing, setTyping] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordTime, setRecordTime] = useState(0);
+  const [attachments, setAttachments] = useState<AttachedFile[]>([]);
+  const [draggingFile, setDraggingFile] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recordTimeRef = useRef(0);
+  const cancelRecordingRef = useRef(false);
+  const intervalRef = useRef<number | null>(null);
+  const responseTimerRef = useRef<number | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, typing, recording]);
+
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) window.clearInterval(intervalRef.current);
+      if (responseTimerRef.current) window.clearTimeout(responseTimerRef.current);
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  function addAssistantResponse(text: string) {
+    setTyping(true);
+    if (responseTimerRef.current) window.clearTimeout(responseTimerRef.current);
+    responseTimerRef.current = window.setTimeout(() => {
+      setMessages((current) => [
+        ...current,
+        {
+          id: Date.now(),
+          role: "assistant",
+          text: getAstraResponse(text),
+          time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+      setTyping(false);
+    }, 1100);
+  }
+
+  function sendMessage(text = input) {
+    const trimmed = text.trim();
+    if (!trimmed && !attachments.length) return;
+    const sentAttachments = attachments;
+    setMessages((current) => [
+      ...current,
+      {
+        id: Date.now(),
+        role: "user",
+        text: trimmed || undefined,
+        attachments: sentAttachments,
+        time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
+    setInput("");
+    setAttachments([]);
+    addAssistantResponse(
+      trimmed || `Прикреплены файлы: ${sentAttachments.map((file) => file.name).join(", ")}`,
+    );
+  }
+
+  function attachFiles(files: FileList | File[]) {
+    const selected = Array.from(files);
+    const available = Math.max(0, 4 - attachments.length);
+    if (!available) {
+      onToast("Можно прикрепить не больше 4 файлов");
+      return;
+    }
+    const valid = selected.slice(0, available).filter((file) => {
+      if (file.size > 10 * 1024 * 1024) {
+        onToast(`${file.name}: максимальный размер файла — 10 МБ`);
+        return false;
+      }
+      return true;
+    });
+    setAttachments((current) => [
+      ...current,
+      ...valid.map((file, index) => ({
+        id: Date.now() + index,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        url: URL.createObjectURL(file),
+      })),
+    ]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function startRecording() {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      onToast("Запись голоса не поддерживается в этом браузере");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      streamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      chunksRef.current = [];
+      cancelRecordingRef.current = false;
+      recordTimeRef.current = 0;
+      setRecordTime(0);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+        if (!cancelRecordingRef.current && chunksRef.current.length) {
+          const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+          const audioUrl = URL.createObjectURL(blob);
+          setMessages((current) => [
+            ...current,
+            {
+              id: Date.now(),
+              role: "user",
+              audioUrl,
+              audioDuration: Math.max(1, recordTimeRef.current),
+              time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
+            },
+          ]);
+          addAssistantResponse("голосовое сообщение о моих планах");
+        }
+      };
+      recorder.start();
+      setRecording(true);
+      intervalRef.current = window.setInterval(() => {
+        recordTimeRef.current += 1;
+        setRecordTime(recordTimeRef.current);
+      }, 1000);
+    } catch {
+      onToast("Разрешите доступ к микрофону, чтобы записать сообщение");
+    }
+  }
+
+  function stopRecording(cancel = false) {
+    cancelRecordingRef.current = cancel;
+    if (intervalRef.current) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
+    setRecording(false);
+  }
+
+  const quickPrompts = ["Что важно сегодня?", "Как мой бюджет?", "Проверь поездку"];
+
+  return (
+    <>
+      <button className="chat-dismiss" onClick={onClose} aria-label="Закрыть чат" />
+      <aside className="astra-chat" aria-label="Чат с Астрой">
+        <header className="chat-header">
+          <div className="chat-identity">
+            <span className="chat-brand">
+              <span className="brand-mark">
+                <span />
+              </span>
+              <i />
+            </span>
+            <div>
+              <strong>Астра</strong>
+              <span>Личный помощник · онлайн</span>
+            </div>
+          </div>
+          <div className="chat-header-actions">
+            <button
+              onClick={() => onToast("История диалога очищается в настройках")}
+              aria-label="Меню чата"
+            >
+              <Icon name="more" size={19} />
+            </button>
+            <button onClick={onClose} aria-label="Закрыть чат">
+              <Icon name="close" size={19} />
+            </button>
+          </div>
+        </header>
+
+        <div className="chat-context">
+          <Icon name="sparkle" size={15} />
+          <span>Астра учитывает ваши поездки, бюджет и задачи</span>
+        </div>
+
+        <div className="chat-scroll">
+          <div className="chat-day">
+            <span>Сегодня</span>
+          </div>
+          <div className="chat-messages">
+            {messages.map((message) => (
+              <div className={`chat-row ${message.role}`} key={message.id}>
+                {message.role === "assistant" && (
+                  <span className="chat-mini-brand">
+                    <span className="brand-mark">
+                      <span />
+                    </span>
+                  </span>
+                )}
+                <div className="chat-bubble">
+                  {message.text && <p>{message.text}</p>}
+                  {message.attachments && (
+                    <div className="message-files">
+                      {message.attachments.map((file) =>
+                        file.type.startsWith("image/") ? (
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="message-image"
+                            key={file.id}
+                          >
+                            <img src={file.url} alt={file.name} />
+                            <span>{file.name}</span>
+                          </a>
+                        ) : (
+                          <a
+                            href={file.url}
+                            download={file.name}
+                            className="message-file"
+                            key={file.id}
+                          >
+                            <span>
+                              <Icon name="file" size={18} />
+                            </span>
+                            <div>
+                              <strong>{file.name}</strong>
+                              <small>{formatFileSize(file.size)}</small>
+                            </div>
+                            <Icon name="arrow" size={15} />
+                          </a>
+                        ),
+                      )}
+                    </div>
+                  )}
+                  {message.audioUrl && (
+                    <VoiceMessage url={message.audioUrl} duration={message.audioDuration ?? 1} />
+                  )}
+                  <time>
+                    {message.time}
+                    {message.role === "user" && <Icon name="check" size={12} />}
+                  </time>
+                </div>
+              </div>
+            ))}
+            {typing && (
+              <div className="chat-row assistant">
+                <span className="chat-mini-brand">
+                  <span className="brand-mark">
+                    <span />
+                  </span>
+                </span>
+                <div className="typing-bubble">
+                  <i />
+                  <i />
+                  <i />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {messages.length < 4 && !recording && (
+            <div className="quick-prompts">
+              <span>Быстрый вопрос</span>
+              <div>
+                {quickPrompts.map((prompt) => (
+                  <button key={prompt} onClick={() => sendMessage(prompt)}>
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        <div
+          className={`chat-composer ${draggingFile ? "dragging" : ""}`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDraggingFile(true);
+          }}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node)) setDraggingFile(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDraggingFile(false);
+            attachFiles(event.dataTransfer.files);
+          }}
+        >
+          {draggingFile && (
+            <div className="file-drop-overlay">
+              <Icon name="clip" size={22} />
+              <strong>Отпустите файлы здесь</strong>
+              <span>До 4 файлов, каждый не больше 10 МБ</span>
+            </div>
+          )}
+          {recording ? (
+            <div className="recording-state">
+              <button
+                className="record-cancel"
+                onClick={() => stopRecording(true)}
+                aria-label="Отменить запись"
+              >
+                <Icon name="close" size={18} />
+              </button>
+              <span className="record-dot" />
+              <strong>{formatDuration(recordTime)}</strong>
+              <div className="live-wave">
+                {Array.from({ length: 18 }, (_, index) => (
+                  <i key={index} />
+                ))}
+              </div>
+              <button
+                className="record-send"
+                onClick={() => stopRecording()}
+                aria-label="Отправить запись"
+              >
+                <Icon name="arrow" size={18} />
+              </button>
+            </div>
+          ) : (
+            <>
+              {attachments.length > 0 && (
+                <div className="attachment-strip">
+                  {attachments.map((file) => (
+                    <div className="attachment-draft" key={file.id}>
+                      {file.type.startsWith("image/") ? (
+                        <img src={file.url} alt="" />
+                      ) : (
+                        <span>
+                          <Icon name="file" size={17} />
+                        </span>
+                      )}
+                      <div>
+                        <strong>{file.name}</strong>
+                        <small>{formatFileSize(file.size)}</small>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setAttachments((current) => current.filter((item) => item.id !== file.id))
+                        }
+                        aria-label={`Удалить ${file.name}`}
+                      >
+                        <Icon name="close" size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="composer-input">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                  onChange={(event) => event.target.files && attachFiles(event.target.files)}
+                  hidden
+                />
+                <button
+                  className="attach-button"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Прикрепить файл"
+                >
+                  <Icon name="clip" size={18} />
+                </button>
+                <textarea
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                  rows={1}
+                  placeholder="Спросите Астру о чём угодно"
+                  aria-label="Сообщение"
+                />
+                <button
+                  className={
+                    input.trim() || attachments.length ? "composer-action send" : "composer-action"
+                  }
+                  onClick={() =>
+                    input.trim() || attachments.length ? sendMessage() : void startRecording()
+                  }
+                  aria-label={
+                    input.trim() || attachments.length
+                      ? "Отправить"
+                      : "Записать голосовое сообщение"
+                  }
+                >
+                  <Icon name={input.trim() || attachments.length ? "arrow" : "mic"} size={19} />
+                </button>
+              </div>
+              <p className="composer-hint">
+                <Icon name="mic" size={12} /> Нажмите на микрофон для голосового сообщения
+              </p>
+            </>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}
+
 export default function App() {
   const [active, setActive] = useState("Главная");
   const [modal, setModal] = useState<PlanKind | null>(null);
@@ -1218,6 +2048,8 @@ export default function App() {
   const [taskDone, setTaskDone] = useState([false, false, true]);
   const [mobileNav, setMobileNav] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [profileMenu, setProfileMenu] = useState(false);
 
   function showToast(text: string) {
     setToast(text);
@@ -1237,6 +2069,14 @@ export default function App() {
         </div>
         <button className="mobile-close" onClick={() => setMobileNav(false)}>
           <Icon name="close" />
+        </button>
+        <button
+          className="sidebar-collapse"
+          data-tooltip={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          onClick={() => setCollapsed((value) => !value)}
+          aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+        >
+          <Icon name="panel" size={18} />
         </button>
         <nav>
           <p className="nav-label">ПРОСТРАНСТВО</p>
@@ -1269,9 +2109,9 @@ export default function App() {
             <span>Настройки</span>
           </button>
           <button
-            className="profile"
+            className={`profile ${profileMenu ? "active" : ""}`}
             data-tooltip="Профиль"
-            onClick={() => showToast("Профиль Алексея")}
+            onClick={() => setProfileMenu((value) => !value)}
           >
             <div className="avatar">АМ</div>
             <div>
@@ -1280,6 +2120,86 @@ export default function App() {
             </div>
             <Icon name="more" />
           </button>
+          {profileMenu && (
+            <>
+              <button
+                className="profile-menu-dismiss"
+                onClick={() => setProfileMenu(false)}
+                aria-label="Закрыть меню профиля"
+              />
+              <div className="profile-menu-pop">
+                <div className="profile-menu-head">
+                  <div className="avatar">АМ</div>
+                  <div>
+                    <strong>Алексей Морозов</strong>
+                    <span>alexey@astra.demo</span>
+                  </div>
+                  <span className="pro-label">PRO</span>
+                </div>
+                <div className="profile-menu-group">
+                  <button
+                    onClick={() => {
+                      setActive("Настройки");
+                      setProfileMenu(false);
+                    }}
+                  >
+                    <span>
+                      <Icon name="user" size={17} />
+                    </span>
+                    <div>
+                      <strong>Мой профиль</strong>
+                      <small>Личные данные и предпочтения</small>
+                    </div>
+                    <Icon name="chevron" size={14} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      showToast("Управление Pro-планом открыто");
+                      setProfileMenu(false);
+                    }}
+                  >
+                    <span>
+                      <Icon name="sparkle" size={17} />
+                    </span>
+                    <div>
+                      <strong>Астра Pro</strong>
+                      <small>Тариф активен до 16 июля</small>
+                    </div>
+                    <Icon name="chevron" size={14} />
+                  </button>
+                </div>
+                <div className="profile-menu-group compact">
+                  <button
+                    onClick={() => {
+                      setActive("Настройки");
+                      setProfileMenu(false);
+                    }}
+                  >
+                    <Icon name="settings" size={16} />
+                    <strong>Настройки</strong>
+                  </button>
+                  <button
+                    onClick={() => {
+                      showToast("Центр помощи открыт");
+                      setProfileMenu(false);
+                    }}
+                  >
+                    <Icon name="help" size={16} />
+                    <strong>Помощь и поддержка</strong>
+                  </button>
+                </div>
+                <button
+                  className="profile-logout"
+                  onClick={() => {
+                    showToast("Выход из демо-профиля");
+                    setProfileMenu(false);
+                  }}
+                >
+                  <Icon name="logout" size={16} /> Выйти
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </aside>
       {mobileNav && <div className="mobile-overlay" onClick={() => setMobileNav(false)} />}
@@ -1288,14 +2208,6 @@ export default function App() {
         <header>
           <button className="menu-button" onClick={() => setMobileNav(true)}>
             <Icon name="grid" />
-          </button>
-          <button
-            className="sidebar-toggle"
-            onClick={() => setCollapsed((value) => !value)}
-            aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
-          >
-            <Icon name="chevron" size={18} />
-            <span>{collapsed ? "Развернуть меню" : "Свернуть меню"}</span>
           </button>
           <div className="header-actions">
             <button
@@ -1594,6 +2506,13 @@ export default function App() {
                   </button>
                 </article>
               </section>
+              <DashboardWidgets
+                toast={showToast}
+                openSection={(section) => {
+                  setActive(section);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+              />
             </>
           )}
           {active === "Бронирования" && (
@@ -1610,15 +2529,16 @@ export default function App() {
       </main>
 
       <button
-        className="astra-fab"
+        className={`astra-fab ${chatOpen ? "active" : ""}`}
         aria-label="Спросить Астру"
-        onClick={() => showToast("Астра слушает. Чем помочь?")}
+        onClick={() => setChatOpen((value) => !value)}
       >
         <span className="brand-mark">
           <span />
         </span>
         <i>Спросить Астру</i>
       </button>
+      {chatOpen && <AstraChat onClose={() => setChatOpen(false)} onToast={showToast} />}
       {modal && (
         <Modal
           kind={modal}
