@@ -33,7 +33,11 @@ type IconName =
   | "panel"
   | "user"
   | "help"
-  | "logout";
+  | "logout"
+  | "terminal"
+  | "server"
+  | "copy"
+  | "link";
 
 const paths: Record<IconName, ReactNode> = {
   home: (
@@ -205,6 +209,34 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M10 4H5v16h5M14 8l4 4-4 4M8 12h10" />
     </>
   ),
+  terminal: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="m7 9 3 3-3 3M13 15h4" />
+    </>
+  ),
+  server: (
+    <>
+      <rect x="3" y="4" width="18" height="6" rx="2" />
+      <rect x="3" y="14" width="18" height="6" rx="2" />
+      <path d="M7 7h.01M7 17h.01M11 7h6M11 17h6" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="2" />
+      <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+    </>
+  ),
+  link: (
+    <>
+      <path d="m10 13 4-4" />
+      <path
+        d="M7.5 16.5 5 19a3.5 3.5 0 0 1-5-5l3-3a3.5 3.5 0 0 1 5 0M16.5 7.5 19 5a3.5 3.5 0 0 1 5 5l-3 3a3.5 3.5 0 0 1-5 0"
+        transform="translate(-2 -2)"
+      />
+    </>
+  ),
 };
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
@@ -231,6 +263,7 @@ const nav = [
   ["wallet", "Бюджет"],
   ["sparkle", "Цели и события"],
   ["check", "Дела"],
+  ["terminal", "Мои проекты"],
   ["grid", "Копилка"],
 ] as const;
 
@@ -263,6 +296,51 @@ const transactions = [
     note: "12 июн, 09:12",
     value: "− 1 240 ₽",
     color: "green",
+  },
+] as const;
+
+const dashboardSlides = [
+  {
+    kind: "БЛИЖАЙШАЯ ПОЕЗДКА",
+    icon: "plane",
+    date: "21 — 28 ИЮНЯ · 7 ДНЕЙ",
+    title: "Лиссабон",
+    subtitle: "Португалия",
+    image:
+      "https://images.unsplash.com/photo-1525207934214-58e69a8f8a3e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=1400",
+    alt: "Вид на крыши Лиссабона",
+    action: "Открыть поездку",
+    first: ["plane", "SU 2682", "21 июн · 09:45"],
+    second: ["hotel", "The Lumiares", "Заселение · 15:00"],
+    aside: ["24°", "Солнечно"],
+  },
+  {
+    kind: "СЕГОДНЯ ВЕЧЕРОМ",
+    icon: "coffee",
+    date: "СЕГОДНЯ · 20:30",
+    title: "Ужин в Prado",
+    subtitle: "Baixa · Лиссабон",
+    image:
+      "https://images.unsplash.com/photo-1634914204671-794b4b010259?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=1400",
+    alt: "Сервированный стол в ресторане",
+    action: "Детали события",
+    first: ["calendar", "Столик на двоих", "Бронь подтверждена"],
+    second: ["clock", "20:30", "Через 3 часа"],
+    aside: ["1,2 км", "От отеля"],
+  },
+  {
+    kind: "ЗАВТРА · РАБОТА",
+    icon: "briefcase",
+    date: "17 ИЮНЯ · 09:00–17:00",
+    title: "Second Home",
+    subtitle: "Рабочая сессия · Mercado da Ribeira",
+    image:
+      "https://images.unsplash.com/photo-1605641532626-5ab1dab56350?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=1400",
+    alt: "Архитектура Лиссабона",
+    action: "Открыть событие",
+    first: ["calendar", "Дневной пропуск", "Уже оплачен"],
+    second: ["briefcase", "2 встречи", "11:00 и 15:30"],
+    aside: ["Wi-Fi", "300 Мбит/с"],
   },
 ] as const;
 
@@ -343,48 +421,134 @@ function RentalTimer({
 }
 
 function DashboardWidgets({
-  toast,
   openSection,
+  taskDone,
+  setTaskDone,
+  onTask,
+  onExpense,
 }: {
-  toast: (text: string) => void;
   openSection: (section: string) => void;
+  taskDone: boolean[];
+  setTaskDone: React.Dispatch<React.SetStateAction<boolean[]>>;
+  onTask: () => void;
+  onExpense: () => void;
 }) {
   return (
     <section className="dashboard-widgets">
-      <article className="panel rentals-widget">
-        <div className="widget-heading">
+      <article className="panel budget-card financial-widget">
+        <div className="panel-head">
           <div>
-            <span className="overline">ВРЕМЯ ПОД КОНТРОЛЕМ</span>
-            <h3>Активные аренды</h3>
+            <h3>Финансовый ритм</h3>
+            <span className="overline">БЮДЖЕТ · ИЮНЬ</span>
           </div>
-          <button className="plain-button" onClick={() => openSection("Бронирования")}>
-            Все бронирования <Icon name="chevron" size={15} />
+          <button className="quick-add-button" onClick={onExpense}>
+            <Icon name="plus" size={16} />
+            Быстрый расход
           </button>
         </div>
-        <div className="rentals-list">
-          <RentalTimer
-            icon="hotel"
-            title="The Lumiares"
-            note="Выезд 28 июня · до 11:00"
-            hours={134}
-            progress={68}
-          />
-          <RentalTimer
-            icon="bike"
-            title="Lisboa Bikes · City"
-            note="Вернуть в Praça do Comércio"
-            hours={28}
-            progress={88}
-            urgent
-          />
+        <div className="financial-layout">
+          <div className="budget-main">
+            <ProgressRing />
+            <div className="budget-numbers">
+              <span>Осталось</span>
+              <strong>84 320 ₽</strong>
+              <small>из 263 500 ₽</small>
+            </div>
+          </div>
+          <div className="budget-bars">
+            <div>
+              <span>
+                Жильё <b>82%</b>
+              </span>
+              <i>
+                <em style={{ width: "82%" }} />
+              </i>
+            </div>
+            <div>
+              <span>
+                Еда <b>54%</b>
+              </span>
+              <i>
+                <em style={{ width: "54%" }} />
+              </i>
+            </div>
+            <div>
+              <span>
+                Транспорт <b>39%</b>
+              </span>
+              <i>
+                <em style={{ width: "39%" }} />
+              </i>
+            </div>
+          </div>
         </div>
+        <div className="budget-insight">
+          <Icon name="sparkle" size={17} />
+          <span>
+            <strong>В отличном темпе</strong>При текущих расходах останется ~18 600 ₽
+          </span>
+          <button onClick={() => openSection("Бюджет")}>
+            Подробнее <Icon name="arrow" size={14} />
+          </button>
+        </div>
+      </article>
+
+      <article className="panel tasks dashboard-focus-widget">
+        <div className="panel-head">
+          <div>
+            <h3>Фокус дня</h3>
+            <span className="overline">СЕГОДНЯ · 3 ЗАДАЧИ</span>
+          </div>
+          <button className="round-plus" onClick={onTask}>
+            <Icon name="plus" size={18} />
+          </button>
+        </div>
+        <div className="focus-summary">
+          <span>
+            <Icon name="clock" size={15} /> До ближайшего дедлайна
+          </span>
+          <strong>1 ч 24 мин</strong>
+        </div>
+        <div className="task-list">
+          {[
+            ["Отправить отчёт по проекту", "Работа · до 12:00"],
+            ["Купить страховку для поездки", "Лиссабон · до 18 июня"],
+            ["Созвон с командой", "Работа · 16:30"],
+          ].map(([title, note], index) => (
+            <button
+              className={taskDone[index] ? "task done" : "task"}
+              key={title}
+              onClick={() =>
+                setTaskDone((value) =>
+                  value.map((item, itemIndex) => (itemIndex === index ? !item : item)),
+                )
+              }
+            >
+              <span className="task-check">
+                {taskDone[index] && <Icon name="check" size={17} />}
+              </span>
+              <span>
+                <strong>{title}</strong>
+                <small>{note}</small>
+              </span>
+              {index === 0 && !taskDone[index] ? (
+                <span className="burning-badge">Срочно</span>
+              ) : (
+                <Icon name="more" size={18} />
+              )}
+            </button>
+          ))}
+        </div>
+        <button className="task-footer" onClick={() => openSection("Дела")}>
+          Перейти к доске дел <Icon name="arrow" size={17} />
+        </button>
       </article>
 
       <article className="panel month-spend-widget">
         <div className="widget-heading">
           <div>
-            <span className="overline">ИЮНЬ · 68% БЮДЖЕТА</span>
             <h3>Расходы в этом месяце</h3>
+            <span className="overline">ИЮНЬ · 68% БЮДЖЕТА</span>
           </div>
           <button className="round-plus" onClick={() => openSection("Бюджет")}>
             <Icon name="arrow" size={16} />
@@ -423,45 +587,11 @@ function DashboardWidgets({
         </div>
       </article>
 
-      <article className="panel events-widget">
-        <div className="widget-heading">
-          <div>
-            <span className="overline">КАЛЕНДАРЬ</span>
-            <h3>Запланированные события</h3>
-          </div>
-          <button className="round-plus" onClick={() => toast("Создание события открыто")}>
-            <Icon name="plus" size={16} />
-          </button>
-        </div>
-        <div className="dashboard-events">
-          {[
-            ["21", "ИЮН", "Перелёт в Лиссабон", "09:45 · SU 2682", "travel"],
-            ["01", "СЕН", "Road trip по Исландии", "12 дней · 4 участника", "personal"],
-            ["16", "НОЯ", "Web Summit 2025", "Лиссабон · Altice Arena", "work"],
-          ].map(([day, month, title, note, tone]) => (
-            <button key={title} onClick={() => openSection("Цели и события")}>
-              <time className={tone}>
-                <strong>{day}</strong>
-                <span>{month}</span>
-              </time>
-              <div>
-                <strong>{title}</strong>
-                <small>{note}</small>
-              </div>
-              <Icon name="chevron" size={16} />
-            </button>
-          ))}
-        </div>
-        <button className="widget-footer" onClick={() => openSection("Цели и события")}>
-          Открыть календарь <Icon name="arrow" size={15} />
-        </button>
-      </article>
-
       <article className="panel upcoming-widget">
         <div className="widget-heading">
           <div>
-            <span className="overline">СЛЕДУЮЩИЕ 3 ДНЯ</span>
             <h3>Ближайшие дела</h3>
+            <span className="overline">СЛЕДУЮЩИЕ 3 ДНЯ</span>
           </div>
           <span className="soft-badge">5 задач</span>
         </div>
@@ -513,7 +643,7 @@ function DashboardWidgets({
   );
 }
 
-type PlanKind = "booking" | "event" | "task" | "goal";
+type PlanKind = "booking" | "event" | "task" | "goal" | "expense";
 
 const planContent: Record<
   PlanKind,
@@ -558,6 +688,14 @@ const planContent: Record<
     placeholder: "Например, новый MacBook",
     button: "Создать цель",
   },
+  expense: {
+    eyebrow: "БЫСТРЫЙ РАСХОД",
+    title: "Добавить расход",
+    subtitle: "Запишите операцию, чтобы бюджет и прогноз Астры оставались актуальными.",
+    icon: "wallet",
+    placeholder: "Например, ужин в Prado",
+    button: "Добавить расход",
+  },
 };
 
 function Modal({
@@ -571,6 +709,7 @@ function Modal({
 }) {
   const [type, setType] = useState("Отель");
   const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("Еда");
   const content = planContent[kind];
   useEffect(() => {
     const close = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -624,14 +763,40 @@ function Modal({
             kind === "booking" && type !== "Отель" ? "Введите детали" : content.placeholder
           }
         />
+        {kind === "expense" && (
+          <div className="expense-categories">
+            <span className="field-label">Категория</span>
+            <div>
+              {[
+                ["Еда", "coffee"],
+                ["Транспорт", "train"],
+                ["Жильё", "hotel"],
+                ["Другое", "grid"],
+              ].map(([label, icon]) => (
+                <button
+                  className={category === label ? "active" : ""}
+                  onClick={() => setCategory(label)}
+                  key={label}
+                >
+                  <Icon name={icon as IconName} size={16} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="field-grid">
           <div>
-            <label className="field-label">Дата начала</label>
+            <label className="field-label">
+              {kind === "expense" ? "Дата операции" : "Дата начала"}
+            </label>
             <input type="date" defaultValue="2025-06-21" />
           </div>
           <div>
-            <label className="field-label">{kind === "task" ? "Время" : "Бюджет"}</label>
-            <input placeholder="0 ₽" />
+            <label className="field-label">
+              {kind === "task" ? "Время" : kind === "expense" ? "Сумма" : "Бюджет"}
+            </label>
+            <input placeholder={kind === "task" ? "12:00" : "0 ₽"} />
           </div>
         </div>
         <button className="primary wide" onClick={onCreated} disabled={!title.trim()}>
@@ -1131,7 +1296,285 @@ function EventsPage({ plan, toast }: { plan: () => void; toast: (text: string) =
   );
 }
 
-function TasksPage({ plan, toast }: { plan: () => void; toast: (text: string) => void }) {
+type TaskView = "Задачи" | "Регулярные задачи" | "Agile";
+
+function TasksPage({
+  plan,
+  toast,
+  view,
+}: {
+  plan: () => void;
+  toast: (text: string) => void;
+  view: TaskView;
+}) {
+  const [listDone, setListDone] = useState([false, true, false, false, false]);
+  const [recurringEnabled, setRecurringEnabled] = useState([true, true, true, false]);
+
+  if (view === "Задачи") {
+    return (
+      <div className="section-page task-list-page">
+        <PageTitle
+          label="ЛИЧНОЕ И РАБОЧЕЕ"
+          title="Задачи"
+          description="Все разовые дела, дедлайны и задачи из ваших проектов."
+          action={
+            <button className="primary page-action" onClick={plan}>
+              Новая задача <Icon name="plus" size={17} />
+            </button>
+          }
+        />
+        <div className="stats-row">
+          <StatCard
+            label="На сегодня"
+            value="5"
+            note="2 срочные задачи"
+            icon="clock"
+            tone="orange"
+          />
+          <StatCard label="В работе" value="8" note="3 связаны с проектами" icon="briefcase" />
+          <StatCard
+            label="Завершено"
+            value="24"
+            note="За последние 7 дней"
+            icon="check"
+            tone="blue"
+          />
+          <StatCard
+            label="Просрочено"
+            value="1"
+            note="Требует внимания"
+            icon="bell"
+            tone="purple"
+          />
+        </div>
+        <div className="tasks-list-layout">
+          <article className="panel task-inbox">
+            <div className="workspace-head">
+              <div>
+                <h3>Все задачи</h3>
+                <span className="overline">СЕГОДНЯ И БЛИЖАЙШИЕ</span>
+              </div>
+              <div className="segmented">
+                <button className="active">Все</button>
+                <button>Работа</button>
+                <button>Личное</button>
+              </div>
+            </div>
+            <div className="task-date-group">
+              <span>СЕГОДНЯ · 3 ЗАДАЧИ</span>
+              {[
+                ["Отправить отчёт по проекту", "Astra Frontend", "12:00", "high"],
+                ["Созвон с командой", "Google Meet · Работа", "16:30", "medium"],
+                ["Купить страховку для поездки", "Лиссабон · Документы", "18:00", "low"],
+              ].map(([title, note, time, priority], index) => (
+                <button
+                  className={listDone[index] ? "list-task done" : "list-task"}
+                  key={title}
+                  onClick={() =>
+                    setListDone((value) =>
+                      value.map((item, itemIndex) => (itemIndex === index ? !item : item)),
+                    )
+                  }
+                >
+                  <span className="task-check">
+                    {listDone[index] && <Icon name="check" size={17} />}
+                  </span>
+                  <i className={`priority ${priority}`} />
+                  <div>
+                    <strong>{title}</strong>
+                    <small>{note}</small>
+                  </div>
+                  <time>{time}</time>
+                  <Icon name="more" size={17} />
+                </button>
+              ))}
+            </div>
+            <div className="task-date-group">
+              <span>ЗАВТРА · 2 ЗАДАЧИ</span>
+              {[
+                ["Забронировать трансфер", "Лиссабон · Путешествие", "10:00"],
+                ["Проверить аналитику релиза", "Astra Frontend", "14:00"],
+              ].map(([title, note, time], itemIndex) => {
+                const index = itemIndex + 3;
+                return (
+                  <button
+                    className={listDone[index] ? "list-task done" : "list-task"}
+                    key={title}
+                    onClick={() =>
+                      setListDone((value) =>
+                        value.map((item, currentIndex) => (currentIndex === index ? !item : item)),
+                      )
+                    }
+                  >
+                    <span className="task-check">
+                      {listDone[index] && <Icon name="check" size={17} />}
+                    </span>
+                    <i className="priority low" />
+                    <div>
+                      <strong>{title}</strong>
+                      <small>{note}</small>
+                    </div>
+                    <time>{time}</time>
+                    <Icon name="more" size={17} />
+                  </button>
+                );
+              })}
+            </div>
+          </article>
+          <aside className="panel task-day-summary">
+            <span className="overline">ВАШ ДЕНЬ</span>
+            <h3>Понедельник, 16 июня</h3>
+            <div
+              className="day-progress"
+              style={{
+                background: `conic-gradient(#527762 ${listDone.filter(Boolean).length * 20}%, #e5ebe7 0)`,
+              }}
+            >
+              <span>
+                <strong>{listDone.filter(Boolean).length}</strong>
+                <small>из 5 выполнено</small>
+              </span>
+            </div>
+            <div className="day-focus">
+              <Icon name="sparkle" size={17} />
+              <p>
+                <strong>Совет Астры</strong>
+                <span>Начните с отчёта: до дедлайна осталось меньше двух часов.</span>
+              </p>
+            </div>
+            <button onClick={() => toast("Режим фокуса запущен")}>
+              Начать фокус-сессию <Icon name="arrow" size={15} />
+            </button>
+          </aside>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "Регулярные задачи") {
+    return (
+      <div className="section-page recurring-tasks-page">
+        <PageTitle
+          label="АВТОМАТИЗАЦИЯ РУТИНЫ"
+          title="Регулярные задачи"
+          description="Настройте повторяющиеся дела — Астра сама добавит их в план в нужный момент."
+          action={
+            <button className="primary page-action" onClick={plan}>
+              Новое правило <Icon name="plus" size={17} />
+            </button>
+          }
+        />
+        <div className="stats-row">
+          <StatCard
+            label="Активные правила"
+            value="3"
+            note="Одно правило на паузе"
+            icon="calendar"
+          />
+          <StatCard
+            label="На этой неделе"
+            value="11"
+            note="7 уже выполнено"
+            icon="check"
+            tone="blue"
+          />
+          <StatCard
+            label="Экономия времени"
+            value="3 ч 20 мин"
+            note="За текущий месяц"
+            icon="clock"
+            tone="purple"
+          />
+          <StatCard
+            label="Следующая задача"
+            value="Завтра"
+            note="Утренняя планёрка · 09:30"
+            icon="bell"
+            tone="orange"
+          />
+        </div>
+        <article className="panel recurring-rules-panel">
+          <div className="workspace-head">
+            <div>
+              <h3>Правила повторения</h3>
+              <span className="overline">4 СЦЕНАРИЯ</span>
+            </div>
+            <button className="round-plus" onClick={plan}>
+              <Icon name="plus" size={17} />
+            </button>
+          </div>
+          <div className="recurring-task-rules">
+            {[
+              [
+                "Еженедельный обзор проектов",
+                "Каждую пятницу · 16:00",
+                "Работа",
+                "Следующая: 20 июня",
+                "briefcase",
+              ],
+              ["Утренняя планёрка", "Пн–Пт · 09:30", "Работа", "Следующая: завтра", "coffee"],
+              [
+                "Проверить бюджет",
+                "1-го числа каждого месяца",
+                "Финансы",
+                "Следующая: 1 июля",
+                "wallet",
+              ],
+              [
+                "Резервная копия документов",
+                "Каждое воскресенье · 20:00",
+                "Личное",
+                "На паузе",
+                "file",
+              ],
+            ].map(([title, schedule, category, next, icon], index) => (
+              <div
+                className={recurringEnabled[index] ? "recurring-rule" : "recurring-rule disabled"}
+                key={title}
+              >
+                <span className={`rule-icon r${index}`}>
+                  <Icon name={icon as IconName} size={19} />
+                </span>
+                <div>
+                  <strong>{title}</strong>
+                  <small>{schedule}</small>
+                  <span>
+                    {category} · {next}
+                  </span>
+                </div>
+                <button
+                  className={recurringEnabled[index] ? "switch on" : "switch"}
+                  onClick={() =>
+                    setRecurringEnabled((value) =>
+                      value.map((item, itemIndex) => (itemIndex === index ? !item : item)),
+                    )
+                  }
+                >
+                  <i />
+                </button>
+                <button className="rule-more" onClick={() => toast(`${title}: настройки открыты`)}>
+                  <Icon name="more" size={17} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </article>
+        <article className="panel recurring-calendar">
+          <div>
+            <span className="overline">БЛИЖАЙШИЕ 7 ДНЕЙ</span>
+            <h3>Расписание повторений</h3>
+          </div>
+          {["ПН 16", "ВТ 17", "СР 18", "ЧТ 19", "ПТ 20", "СБ 21", "ВС 22"].map((day, index) => (
+            <button className={index === 0 ? "today" : ""} key={day}>
+              <strong>{day}</strong>
+              <span>{index < 5 ? "1" : index === 6 ? "1" : "0"}</span>
+            </button>
+          ))}
+        </article>
+      </div>
+    );
+  }
+
   const columns = [
     {
       title: "Бэклог",
@@ -1510,6 +1953,382 @@ function SettingsPage({ toast }: { toast: (text: string) => void }) {
   );
 }
 
+type AgentProject = {
+  id: number;
+  name: string;
+  repository: string;
+  environment: string;
+  status: "online" | "waiting" | "offline";
+  agent: string;
+  activity: string;
+};
+
+const initialAgentProjects: AgentProject[] = [
+  {
+    id: 1,
+    name: "Astra Frontend",
+    repository: "github.com/deestylov-new/astra-front",
+    environment: "Production",
+    status: "online",
+    agent: "Frontend Scout",
+    activity: "Изучил структуру dashboard · 4 мин назад",
+  },
+  {
+    id: 2,
+    name: "Travel Core API",
+    repository: "github.com/astra-labs/travel-core",
+    environment: "Staging",
+    status: "waiting",
+    agent: "Backend Navigator",
+    activity: "Ожидает установки на сервер",
+  },
+  {
+    id: 3,
+    name: "Nomad Analytics",
+    repository: "github.com/astra-labs/nomad-analytics",
+    environment: "Production",
+    status: "offline",
+    agent: "Data Observer",
+    activity: "Нет связи · 2 часа",
+  },
+];
+
+function WorkspacePage({ toast }: { toast: (text: string) => void }) {
+  const [projects, setProjects] = useState(initialAgentProjects);
+  const [selected, setSelected] = useState(1);
+  const [creating, setCreating] = useState(false);
+  const [projectName, setProjectName] = useState("");
+  const [repository, setRepository] = useState("");
+  const [environment, setEnvironment] = useState("Production");
+  const activeProject = projects.find((project) => project.id === selected) ?? projects[0];
+  const installCommand = `curl -fsSL https://agents.astra.demo/install | bash -s -- \\\n  --project=${activeProject.id} \\\n  --token=astra_demo_7K9••••••••`;
+
+  function copyCommand() {
+    if (navigator.clipboard) void navigator.clipboard.writeText(installCommand);
+    toast("Команда установки скопирована");
+  }
+
+  function createProject() {
+    if (!projectName.trim() || !repository.trim()) return;
+    const id = Date.now();
+    setProjects((current) => [
+      ...current,
+      {
+        id,
+        name: projectName.trim(),
+        repository: repository.replace(/^https?:\/\//, ""),
+        environment,
+        status: "waiting",
+        agent: "Новый субагент",
+        activity: "Ожидает установки на сервер",
+      },
+    ]);
+    setSelected(id);
+    setCreating(false);
+    setProjectName("");
+    setRepository("");
+    toast("Проект создан — установите субагента");
+  }
+
+  return (
+    <div className="section-page workspace-page">
+      <PageTitle
+        label="ПРОЕКТЫ И СУБАГЕНТЫ"
+        title="Мои проекты"
+        description="Подключайте проекты, устанавливайте локальных субагентов и поручайте им работу с кодовой базой."
+        action={
+          <button className="primary page-action" onClick={() => setCreating(true)}>
+            Новый проект <Icon name="plus" size={17} />
+          </button>
+        }
+      />
+
+      <div className="stats-row workspace-stats">
+        <StatCard
+          label="Проекты"
+          value={String(projects.length)}
+          note="Во всех окружениях"
+          icon="briefcase"
+        />
+        <StatCard
+          label="Агенты онлайн"
+          value={String(projects.filter((project) => project.status === "online").length)}
+          note="Готовы к задачам"
+          icon="sparkle"
+          tone="green"
+        />
+        <StatCard
+          label="Выполнено за неделю"
+          value="27"
+          note="+8 к прошлой неделе"
+          icon="check"
+          tone="blue"
+        />
+        <StatCard
+          label="Время агентов"
+          value="18 ч 42 мин"
+          note="Сэкономлено команде"
+          icon="clock"
+          tone="purple"
+        />
+      </div>
+
+      <article className="agent-onboarding panel">
+        <div className="onboarding-copy">
+          <span className="workspace-mark">
+            <Icon name="terminal" size={22} />
+          </span>
+          <div>
+            <span className="overline">КАК ЭТО РАБОТАЕТ</span>
+            <h3>Субагент работает внутри вашего проекта</h3>
+            <p>
+              Он получает доступ только к выбранному репозиторию, изучает код и выполняет задачи в
+              окружении проекта.
+            </p>
+          </div>
+        </div>
+        <div className="onboarding-steps">
+          {[
+            ["01", "Добавьте проект", "Укажите репозиторий и окружение"],
+            ["02", "Запустите команду", "Установщик развернёт субагента"],
+            ["03", "Ставьте задачи", "Обращайтесь к агенту из Астры"],
+          ].map(([number, title, note]) => (
+            <div key={number}>
+              <span>{number}</span>
+              <p>
+                <strong>{title}</strong>
+                <small>{note}</small>
+              </p>
+            </div>
+          ))}
+        </div>
+      </article>
+
+      <div className="workspace-project-layout">
+        <section className="panel projects-panel">
+          <div className="workspace-head">
+            <div>
+              <h3>Ваши проекты</h3>
+              <span className="overline">{projects.length} ПОДКЛЮЧЕНИЯ</span>
+            </div>
+            <button className="round-plus" onClick={() => setCreating(true)}>
+              <Icon name="plus" size={17} />
+            </button>
+          </div>
+          <div className="agent-projects">
+            {projects.map((project) => (
+              <article
+                className={selected === project.id ? "agent-project active" : "agent-project"}
+                key={project.id}
+              >
+                <button className="project-main" onClick={() => setSelected(project.id)}>
+                  <span className="project-logo">
+                    <Icon name={project.status === "online" ? "terminal" : "server"} size={20} />
+                  </span>
+                  <div>
+                    <strong>{project.name}</strong>
+                    <small>
+                      <Icon name="link" size={12} /> {project.repository}
+                    </small>
+                  </div>
+                  <span className={`agent-status ${project.status}`}>
+                    <i />
+                    {project.status === "online"
+                      ? "Онлайн"
+                      : project.status === "waiting"
+                        ? "Установка"
+                        : "Офлайн"}
+                  </span>
+                </button>
+                <div className="project-agent">
+                  <div>
+                    <span className="agent-avatar">
+                      <Icon name="sparkle" size={15} />
+                    </span>
+                    <p>
+                      <strong>{project.agent}</strong>
+                      <small>{project.activity}</small>
+                    </p>
+                  </div>
+                  <button
+                    className={
+                      project.status === "online" ? "agent-chat-button" : "agent-chat-button muted"
+                    }
+                    onClick={() =>
+                      project.status === "online"
+                        ? toast(`Диалог с ${project.agent} открыт`)
+                        : setSelected(project.id)
+                    }
+                  >
+                    {project.status === "online" ? "Обратиться" : "Подключить"}
+                    <Icon name={project.status === "online" ? "arrow" : "terminal"} size={14} />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <aside className="panel install-panel">
+          <div className="install-head">
+            <span className={`agent-status ${activeProject.status}`}>
+              <i />
+              {activeProject.status === "online" ? "Агент подключён" : "Требуется установка"}
+            </span>
+            <button onClick={() => toast("Настройки проекта открыты")}>
+              <Icon name="settings" size={17} />
+            </button>
+          </div>
+          <span className="workspace-mark large">
+            <Icon name="terminal" size={25} />
+          </span>
+          <h3>
+            {activeProject.status === "online"
+              ? "Переустановить субагента"
+              : "Установить субагента"}
+          </h3>
+          <p>Запустите команду в терминале сервера из корневой директории проекта.</p>
+          <div className="install-code">
+            <div>
+              <span />
+              <span />
+              <span />
+              <small>terminal</small>
+            </div>
+            <pre>{installCommand}</pre>
+            <button onClick={copyCommand}>
+              <Icon name="copy" size={16} /> Копировать
+            </button>
+          </div>
+          <div className="install-security">
+            <Icon name="check" size={16} />
+            <p>
+              <strong>Безопасное подключение</strong>
+              <span>
+                Токен привязан только к проекту {activeProject.name} и скрыт после установки.
+              </span>
+            </p>
+          </div>
+          <button
+            className="install-help"
+            onClick={() => toast("Инструкция по ручной установке открыта")}
+          >
+            Инструкция для Docker и CI/CD <Icon name="chevron" size={14} />
+          </button>
+        </aside>
+      </div>
+
+      <article className="panel agent-activity-panel">
+        <div className="workspace-head">
+          <div>
+            <h3>Последняя активность</h3>
+            <span className="overline">РАБОТА СУБАГЕНТОВ</span>
+          </div>
+          <button className="plain-button">
+            Вся история <Icon name="chevron" size={15} />
+          </button>
+        </div>
+        <div className="agent-activity-list">
+          {[
+            [
+              "Frontend Scout",
+              "Проанализировал компоненты dashboard и предложил декомпозицию",
+              "Astra Frontend",
+              "4 мин",
+            ],
+            [
+              "Frontend Scout",
+              "Проверил production-сборку после изменения типографики",
+              "Astra Frontend",
+              "32 мин",
+            ],
+            [
+              "Data Observer",
+              "Подготовил отчёт по событиям путешествий за июнь",
+              "Nomad Analytics",
+              "2 ч",
+            ],
+          ].map(([agent, action, project, time], index) => (
+            <button key={action} onClick={() => toast(`${agent}: результат задачи открыт`)}>
+              <span className={`activity-icon a${index}`}>
+                <Icon name={index === 1 ? "check" : "sparkle"} size={17} />
+              </span>
+              <div>
+                <strong>{action}</strong>
+                <small>
+                  {agent} · {project}
+                </small>
+              </div>
+              <time>{time}</time>
+              <Icon name="chevron" size={15} />
+            </button>
+          ))}
+        </div>
+      </article>
+
+      {creating && (
+        <div className="modal-backdrop" onMouseDown={() => setCreating(false)}>
+          <div className="modal project-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <button
+              className="icon-button modal-close"
+              onClick={() => setCreating(false)}
+              aria-label="Закрыть"
+            >
+              <Icon name="close" />
+            </button>
+            <div className="modal-mark">
+              <Icon name="terminal" size={24} />
+            </div>
+            <p className="eyebrow">НОВОЕ ПОДКЛЮЧЕНИЕ</p>
+            <h2>Добавить проект</h2>
+            <p className="modal-subtitle">
+              После создания вы получите персональную команду установки субагента.
+            </p>
+            <div className="project-form">
+              <label>
+                <span className="field-label">Название проекта</span>
+                <input
+                  autoFocus
+                  value={projectName}
+                  onChange={(event) => setProjectName(event.target.value)}
+                  placeholder="Например, Travel Core API"
+                />
+              </label>
+              <label>
+                <span className="field-label">URL репозитория</span>
+                <input
+                  value={repository}
+                  onChange={(event) => setRepository(event.target.value)}
+                  placeholder="https://github.com/company/project"
+                />
+              </label>
+              <span className="field-label">Окружение</span>
+              <div className="environment-switch">
+                {["Production", "Staging", "Development"].map((item) => (
+                  <button
+                    className={environment === item ? "active" : ""}
+                    onClick={() => setEnvironment(item)}
+                    key={item}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              className="primary wide"
+              disabled={!projectName.trim() || !repository.trim()}
+              onClick={createProject}
+            >
+              Создать и получить команду <Icon name="arrow" size={17} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type ChatMessage = {
   id: number;
   role: "assistant" | "user";
@@ -1603,6 +2422,14 @@ function getAstraResponse(message: string) {
   }
   if (value.includes("накоп") || value.includes("цель") || value.includes("копил")) {
     return "Общий прогресс накоплений — 64%. Вы опережаете план на 12 дней. Ближайшая цель — Исландия: собрано 186 000 ₽ из 260 000 ₽.";
+  }
+  if (
+    value.includes("проект") ||
+    value.includes("субагент") ||
+    value.includes("рабоч") ||
+    value.includes("агент")
+  ) {
+    return "В «Моих проектах» сейчас 3 подключения. Frontend Scout онлайн и уже изучил Astra Frontend, Backend Navigator ожидает установки, а Data Observer был офлайн последние 2 часа. Могу открыть проект или сформулировать задачу для агента.";
   }
   return "Я изучила ваши планы. Могу проверить поездки, оценить бюджет, расставить приоритеты в задачах или помочь создать новую цель. С чего начнём?";
 }
@@ -1779,7 +2606,12 @@ function AstraChat({
     setRecording(false);
   }
 
-  const quickPrompts = ["Что важно сегодня?", "Как мой бюджет?", "Проверь поездку"];
+  const quickPrompts = [
+    "Что важно сегодня?",
+    "Как мой бюджет?",
+    "Проверь поездку",
+    "Что по моим проектам?",
+  ];
 
   return (
     <>
@@ -1813,7 +2645,7 @@ function AstraChat({
 
         <div className="chat-context">
           <Icon name="sparkle" size={15} />
-          <span>Астра учитывает ваши поездки, бюджет и задачи</span>
+          <span>Астра учитывает поездки, бюджет, задачи и рабочие проекты</span>
         </div>
 
         <div className="chat-scroll">
@@ -2050,6 +2882,18 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [profileMenu, setProfileMenu] = useState(false);
+  const [heroSlide, setHeroSlide] = useState(0);
+  const [taskView, setTaskView] = useState<TaskView>("Задачи");
+  const [tasksExpanded, setTasksExpanded] = useState(false);
+
+  useEffect(() => {
+    if (active !== "Главная") return;
+    const interval = window.setInterval(
+      () => setHeroSlide((value) => (value + 1) % dashboardSlides.length),
+      7000,
+    );
+    return () => window.clearInterval(interval);
+  }, [active]);
 
   function showToast(text: string) {
     setToast(text);
@@ -2080,21 +2924,65 @@ export default function App() {
         </button>
         <nav>
           <p className="nav-label">ПРОСТРАНСТВО</p>
-          {nav.map(([icon, label]) => (
-            <button
-              key={label}
-              className={active === label ? "active" : ""}
-              data-tooltip={label}
-              onClick={() => {
-                setActive(label);
-                setMobileNav(false);
-              }}
-            >
-              <Icon name={icon} />
-              <span>{label}</span>
-              {label === "Дела" && <b>5</b>}
-            </button>
-          ))}
+          {nav.map(([icon, label]) => {
+            if (label === "Дела") {
+              return (
+                <div className="nav-group" key={label}>
+                  <button
+                    className={active === label ? "active" : ""}
+                    data-tooltip={label}
+                    onClick={() => {
+                      setActive(label);
+                      setTasksExpanded((value) => !value);
+                    }}
+                  >
+                    <Icon name={icon} />
+                    <span>{label}</span>
+                    <span className="nav-group-meta">
+                      <b>5</b>
+                      <Icon name="chevron" size={14} />
+                    </span>
+                  </button>
+                  {tasksExpanded && (
+                    <div className="nav-submenu">
+                      {[
+                        ["Задачи", "check"],
+                        ["Регулярные задачи", "calendar"],
+                        ["Agile", "grid"],
+                      ].map(([item, itemIcon]) => (
+                        <button
+                          className={active === "Дела" && taskView === item ? "active" : ""}
+                          onClick={() => {
+                            setTaskView(item as TaskView);
+                            setActive("Дела");
+                            setMobileNav(false);
+                          }}
+                          key={item}
+                        >
+                          <Icon name={itemIcon as IconName} size={15} />
+                          <span>{item}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return (
+              <button
+                key={label}
+                className={active === label ? "active" : ""}
+                data-tooltip={label}
+                onClick={() => {
+                  setActive(label);
+                  setMobileNav(false);
+                }}
+              >
+                <Icon name={icon} />
+                <span>{label}</span>
+              </button>
+            );
+          })}
         </nav>
         <div className="sidebar-bottom">
           <button
@@ -2306,27 +3194,49 @@ export default function App() {
               <section className="hero-grid">
                 <article className="trip-card">
                   <img
-                    src="https://images.unsplash.com/photo-1525207934214-58e69a8f8a3e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=1400"
-                    alt="Вид на крыши Лиссабона"
+                    key={dashboardSlides[heroSlide].image}
+                    src={dashboardSlides[heroSlide].image}
+                    alt={dashboardSlides[heroSlide].alt}
                   />
                   <div className="trip-overlay" />
                   <div className="trip-top">
                     <span>
-                      <Icon name="plane" size={17} /> БЛИЖАЙШАЯ ПОЕЗДКА
+                      <Icon name={dashboardSlides[heroSlide].icon as IconName} size={17} />
+                      {dashboardSlides[heroSlide].kind}
                     </span>
-                    <button
-                      aria-label="Меню поездки"
-                      onClick={() => setTripMenu((value) => !value)}
-                      className={tripMenu ? "active" : ""}
-                    >
-                      <Icon name="more" />
-                    </button>
+                    <div className="trip-actions">
+                      <button
+                        aria-label="Предыдущее событие"
+                        onClick={() =>
+                          setHeroSlide((value) =>
+                            value === 0 ? dashboardSlides.length - 1 : value - 1,
+                          )
+                        }
+                      >
+                        <Icon name="chevron" size={17} />
+                      </button>
+                      <button
+                        aria-label="Следующее событие"
+                        onClick={() =>
+                          setHeroSlide((value) => (value + 1) % dashboardSlides.length)
+                        }
+                      >
+                        <Icon name="chevron" size={17} />
+                      </button>
+                      <button
+                        aria-label="Меню события"
+                        onClick={() => setTripMenu((value) => !value)}
+                        className={tripMenu ? "active" : ""}
+                      >
+                        <Icon name="more" />
+                      </button>
+                    </div>
                     {tripMenu && (
                       <div className="trip-pop">
-                        <button onClick={() => showToast("Редактирование поездки открыто")}>
+                        <button onClick={() => showToast("Редактирование события открыто")}>
                           Редактировать
                         </button>
-                        <button onClick={() => showToast("Ссылка на поездку скопирована")}>
+                        <button onClick={() => showToast("Ссылка на событие скопирована")}>
                           Поделиться
                         </button>
                         <button onClick={() => showToast("Напоминания включены")}>
@@ -2337,177 +3247,94 @@ export default function App() {
                   </div>
                   <div className="trip-content">
                     <div>
-                      <span className="trip-date">21 — 28 ИЮНЯ · 7 ДНЕЙ</span>
-                      <h2>Лиссабон</h2>
-                      <p>Португалия</p>
+                      <span className="trip-date">{dashboardSlides[heroSlide].date}</span>
+                      <h2>{dashboardSlides[heroSlide].title}</h2>
+                      <p>{dashboardSlides[heroSlide].subtitle}</p>
                     </div>
                     <button
                       className="glass-button"
-                      onClick={() => showToast("Маршрут поездки открыт")}
+                      onClick={() =>
+                        showToast(`${dashboardSlides[heroSlide].title}: детали открыты`)
+                      }
                     >
-                      Открыть поездку <Icon name="arrow" size={18} />
+                      {dashboardSlides[heroSlide].action} <Icon name="arrow" size={18} />
                     </button>
+                  </div>
+                  <div className="hero-dots">
+                    {dashboardSlides.map((slide, index) => (
+                      <button
+                        className={heroSlide === index ? "active" : ""}
+                        onClick={() => setHeroSlide(index)}
+                        aria-label={`Показать: ${slide.title}`}
+                        key={slide.title}
+                      />
+                    ))}
                   </div>
                   <div className="trip-footer">
                     <div>
                       <span className="trip-icon">
-                        <Icon name="plane" size={17} />
+                        <Icon name={dashboardSlides[heroSlide].first[0] as IconName} size={17} />
                       </span>
                       <p>
-                        <strong>SU 2682</strong>
-                        <small>21 июн · 09:45</small>
+                        <strong>{dashboardSlides[heroSlide].first[1]}</strong>
+                        <small>{dashboardSlides[heroSlide].first[2]}</small>
                       </p>
                     </div>
                     <div>
                       <span className="trip-icon">
-                        <Icon name="hotel" size={17} />
+                        <Icon name={dashboardSlides[heroSlide].second[0] as IconName} size={17} />
                       </span>
                       <p>
-                        <strong>The Lumiares</strong>
-                        <small>Заселение · 15:00</small>
+                        <strong>{dashboardSlides[heroSlide].second[1]}</strong>
+                        <small>{dashboardSlides[heroSlide].second[2]}</small>
                       </p>
                     </div>
                     <div className="trip-weather">
-                      <strong>24°</strong>
-                      <span>Солнечно</span>
+                      <strong>{dashboardSlides[heroSlide].aside[0]}</strong>
+                      <span>{dashboardSlides[heroSlide].aside[1]}</span>
                     </div>
                   </div>
                 </article>
 
-                <article className="budget-card panel">
-                  <div className="panel-head">
+                <article className="panel rentals-widget hero-rentals">
+                  <div className="widget-heading">
                     <div>
-                      <span className="overline">БЮДЖЕТ · ИЮНЬ</span>
-                      <h3>Финансовый ритм</h3>
+                      <h3>Активные аренды</h3>
+                      <span className="overline">ВРЕМЯ ПОД КОНТРОЛЕМ</span>
                     </div>
-                    <button
-                      className="plain-button"
-                      onClick={() => showToast("Открыт подробный бюджет")}
-                    >
-                      Подробнее <Icon name="chevron" size={16} />
+                    <button className="plain-button" onClick={() => setActive("Бронирования")}>
+                      Все <Icon name="chevron" size={15} />
                     </button>
                   </div>
-                  <div className="budget-main">
-                    <ProgressRing />
-                    <div className="budget-numbers">
-                      <span>Осталось</span>
-                      <strong>84 320 ₽</strong>
-                      <small>из 263 500 ₽</small>
-                    </div>
+                  <div className="rentals-list">
+                    <RentalTimer
+                      icon="hotel"
+                      title="The Lumiares"
+                      note="Выезд 28 июня · до 11:00"
+                      hours={134}
+                      progress={68}
+                    />
+                    <RentalTimer
+                      icon="bike"
+                      title="Lisboa Bikes · City"
+                      note="Вернуть в Praça do Comércio"
+                      hours={28}
+                      progress={88}
+                      urgent
+                    />
                   </div>
-                  <div className="budget-bars">
-                    <div>
-                      <span>
-                        Жильё <b>82%</b>
-                      </span>
-                      <i>
-                        <em style={{ width: "82%" }} />
-                      </i>
-                    </div>
-                    <div>
-                      <span>
-                        Еда <b>54%</b>
-                      </span>
-                      <i>
-                        <em style={{ width: "54%" }} />
-                      </i>
-                    </div>
-                    <div>
-                      <span>
-                        Транспорт <b>39%</b>
-                      </span>
-                      <i>
-                        <em style={{ width: "39%" }} />
-                      </i>
-                    </div>
-                  </div>
-                  <div className="budget-insight">
-                    <Icon name="sparkle" size={17} />
-                    <span>
-                      <strong>В отличном темпе</strong>При текущих расходах останется ~18 600 ₽
-                    </span>
+                  <div className="rental-reminder">
+                    <Icon name="bell" size={16} />
+                    <span>Напомним за 2 часа до завершения каждой аренды</span>
                   </div>
                 </article>
               </section>
 
-              <section className="lower-grid">
-                <article className="panel transactions">
-                  <div className="panel-head">
-                    <div>
-                      <span className="overline">ПОСЛЕДНИЕ ОПЕРАЦИИ</span>
-                      <h3>Движение денег</h3>
-                    </div>
-                    <button
-                      className="plain-button"
-                      onClick={() => showToast("Все операции загружены")}
-                    >
-                      Все операции <Icon name="chevron" size={16} />
-                    </button>
-                  </div>
-                  <div className="transaction-list">
-                    {transactions.map((item) => (
-                      <div className="transaction" key={item.title}>
-                        <span className={`transaction-icon ${item.color}`}>
-                          <Icon name={item.icon} size={18} />
-                        </span>
-                        <div>
-                          <strong>{item.title}</strong>
-                          <small>{item.note}</small>
-                        </div>
-                        <b className={item.positive ? "positive" : ""}>{item.value}</b>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-
-                <article className="panel tasks">
-                  <div className="panel-head">
-                    <div>
-                      <span className="overline">СЕГОДНЯ · 3 ЗАДАЧИ</span>
-                      <h3>Фокус дня</h3>
-                    </div>
-                    <button
-                      className="round-plus"
-                      onClick={() => showToast("Новая задача добавлена в план")}
-                    >
-                      <Icon name="plus" size={18} />
-                    </button>
-                  </div>
-                  <div className="task-list">
-                    {[
-                      ["Отправить отчёт по проекту", "Работа · до 12:00"],
-                      ["Купить страховку для поездки", "Лиссабон · до 18 июня"],
-                      ["Созвон с командой", "Работа · 16:30"],
-                    ].map(([title, note], index) => (
-                      <button
-                        className={taskDone[index] ? "task done" : "task"}
-                        key={title}
-                        onClick={() => setTaskDone((v) => v.map((x, i) => (i === index ? !x : x)))}
-                      >
-                        <span className="task-check">
-                          {taskDone[index] && <Icon name="check" size={17} />}
-                        </span>
-                        <span>
-                          <strong>{title}</strong>
-                          <small>{note}</small>
-                        </span>
-                        <Icon name="more" size={18} />
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    className="task-footer"
-                    onClick={() => {
-                      setActive("Дела");
-                      showToast("Открыта agile-доска");
-                    }}
-                  >
-                    Перейти к доске дел <Icon name="arrow" size={17} />
-                  </button>
-                </article>
-              </section>
               <DashboardWidgets
-                toast={showToast}
+                taskDone={taskDone}
+                setTaskDone={setTaskDone}
+                onTask={() => setModal("task")}
+                onExpense={() => setModal("expense")}
                 openSection={(section) => {
                   setActive(section);
                   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2522,7 +3349,10 @@ export default function App() {
           {active === "Цели и события" && (
             <EventsPage plan={() => setModal("event")} toast={showToast} />
           )}
-          {active === "Дела" && <TasksPage plan={() => setModal("task")} toast={showToast} />}
+          {active === "Дела" && (
+            <TasksPage plan={() => setModal("task")} toast={showToast} view={taskView} />
+          )}
+          {active === "Мои проекты" && <WorkspacePage toast={showToast} />}
           {active === "Копилка" && <SavingsPage plan={() => setModal("goal")} toast={showToast} />}
           {active === "Настройки" && <SettingsPage toast={showToast} />}
         </div>
@@ -2549,6 +3379,7 @@ export default function App() {
               event: "Событие запланировано",
               task: "Задача добавлена",
               goal: "Цель накопления создана",
+              expense: "Расход добавлен в бюджет",
             }[modal];
             setModal(null);
             showToast(success);
