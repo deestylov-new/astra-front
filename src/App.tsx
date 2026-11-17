@@ -3003,8 +3003,334 @@ function BudgetPage({ toast }: { toast: (text: string) => void }) {
   );
 }
 
+type PlanStep = {
+  id: string;
+  title: string;
+  done: boolean;
+  start: string;
+  deadline: string;
+  tone: string;
+  icon: IconName;
+};
+
+const prepOrigin = new Date(2026, 5, 16);
+const prepWeeks = 13;
+const prepWeekDates = Array.from({ length: prepWeeks }, (_, index) => {
+  const date = new Date(prepOrigin);
+  date.setDate(prepOrigin.getDate() + index * 7);
+  return date;
+});
+const prepMonths = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+
+function prepDate(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function prepWeekIndex(iso: string) {
+  const diff = Math.round((prepDate(iso).getTime() - prepOrigin.getTime()) / 86400000);
+  return Math.min(prepWeeks - 1, Math.max(0, Math.floor(diff / 7)));
+}
+
+function prepLabel(iso: string) {
+  const date = prepDate(iso);
+  return `${date.getDate()} ${prepMonths[date.getMonth()]}`;
+}
+
+type PlanPlace = {
+  id: string;
+  title: string;
+  address: string;
+  contact: string;
+  note: string;
+  lat: number | null;
+  lng: number | null;
+};
+
+type PlanFile = {
+  id: string;
+  name: string;
+  size: number;
+  kind: string;
+  url: string;
+};
+
+const tripChat = [
+  { author: "Марина", time: "11:04", text: "Жильё в Рейкьявике подтвердили. Код приедет за день до заезда." },
+  { author: "Игорь", time: "11:18", text: "Билеты положил в файлы плана. Обратный рейс 23 сентября, 18:40." },
+  { author: "Софья", time: "12:02", text: "На юге сильный ветер. Утром сверимся с road.is." },
+];
+
+function fileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+}
+
+function mapEmbed(place: PlanPlace) {
+  if (place.lat == null || place.lng == null) return "";
+  const pad = 0.12;
+  const bbox = [place.lng - pad, place.lat - pad, place.lng + pad, place.lat + pad].join(",");
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${place.lat}%2C${place.lng}`;
+}
+
+function prepBar(step: PlanStep) {
+  const from = Math.min(prepWeekIndex(step.start), prepWeekIndex(step.deadline));
+  const to = Math.max(prepWeekIndex(step.start), prepWeekIndex(step.deadline));
+  return { column: from + 1, span: to - from + 1 };
+}
+
+const templateStops = [
+  { days: "1–2", title: "Рейкьявик" },
+  { days: "3–4", title: "Золотое кольцо" },
+  { days: "5–7", title: "Южное побережье" },
+  { days: "8–9", title: "Ледник" },
+  { days: "10–12", title: "Север и возвращение" },
+];
+const templatePeople = ["Алексей · организатор", "Марина · маршрут", "Игорь · бюджет", "Софья · жильё"];
+const templateBudget = [
+  { name: "Жильё", amount: 92000 },
+  { name: "Автомобиль", amount: 74000 },
+  { name: "Еда", amount: 48000 },
+  { name: "Активности", amount: 46000 },
+];
+const templateNotes = [
+  "Прилёт, жильё в центре, прокат автомобиля",
+  "Тингвеллир, Гейсир, Гюдльфосс",
+  "Вик, Рейнисфьяра, Скоугафосс",
+  "Прогулка по языку ледника, ночь в Хусафедле",
+  "Акюрейри, кольцевая дорога, вылет",
+];
+const templateLinks = [
+  { id: "road", title: "Дороги Исландии", url: "https://www.road.is", note: "Закрытия трасс перед выездом на юг" },
+  { id: "weather", title: "Погода", url: "https://vedur.is", note: "Ветер на побережье сильнее прогноза в городе" },
+];
+const templateContacts = [
+  { id: "car", name: "Blue Car Rental", value: "+354 770 0000", note: "Выдача в аэропорту KEF, бронь на Алексея" },
+  { id: "stay", name: "Хозяин жилья в Рейкьявике", value: "+354 555 0142", note: "Заезд после 15:00" },
+];
+const coverIdeas = [
+  {
+    title: "Побережье",
+    src: "https://images.unsplash.com/photo-1500043357865-c6b8827edf10?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=900",
+  },
+  {
+    title: "Город",
+    src: "https://images.unsplash.com/photo-1525207934214-58e69a8f8a3e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=900",
+  },
+  {
+    title: "Горы",
+    src: "https://images.unsplash.com/photo-1605641532626-5ab1dab56350?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=900",
+  },
+];
+
+const templatePlaces: PlanPlace[] = [
+  { id: "reykjavik", title: "Рейкьявик", address: "Laugavegur 12, Reykjavík", contact: "+354 555 0142", note: "Первые две ночи", lat: 64.1466, lng: -21.9426 },
+  { id: "vik", title: "Вик", address: "Víkurbraut 26, Vík", contact: "hostel@vik.is", note: "Ночь у чёрного пляжа", lat: 63.4194, lng: -19.0064 },
+  { id: "glacier", title: "Ледник", address: "Húsafell, Iceland", contact: "+354 435 1550", note: "Прогулка по языку ледника", lat: 64.699, lng: -20.87 },
+];
+
+const initialPlanSteps: PlanStep[] = [
+  { id: "tickets", title: "Билеты туда и обратно", done: true, start: "2026-06-16", deadline: "2026-06-28", tone: "flight", icon: "plane" },
+  { id: "car", title: "Автомобиль на 12 дней", done: true, start: "2026-06-16", deadline: "2026-06-20", tone: "transport", icon: "bike" },
+  { id: "stay", title: "Жильё в Рейкьявике", done: true, start: "2026-06-16", deadline: "2026-07-05", tone: "stay", icon: "hotel" },
+  { id: "ring", title: "Золотое кольцо", done: true, start: "2026-06-22", deadline: "2026-07-12", tone: "event", icon: "sparkle" },
+  { id: "vik", title: "Ночь в Вике", done: true, start: "2026-06-25", deadline: "2026-07-19", tone: "stay", icon: "hotel" },
+  { id: "glacier", title: "Ночь у ледника", done: false, start: "2026-07-01", deadline: "2026-08-02", tone: "stay", icon: "hotel" },
+  { id: "insurance", title: "Страховка путешествия", done: false, start: "2026-07-06", deadline: "2026-08-15", tone: "work", icon: "file" },
+  { id: "gear", title: "Экипировка", done: false, start: "2026-07-20", deadline: "2026-08-20", tone: "equipment", icon: "shopping" },
+  { id: "license", title: "Международные права", done: true, start: "2026-06-16", deadline: "2026-07-01", tone: "work", icon: "file" },
+  { id: "sim", title: "Связь на острове", done: true, start: "2026-08-01", deadline: "2026-08-25", tone: "planned", icon: "link" },
+  { id: "fund", title: "Общий фонд", done: true, start: "2026-06-16", deadline: "2026-07-10", tone: "event", icon: "wallet" },
+  { id: "aid", title: "Список аптеки", done: false, start: "2026-08-10", deadline: "2026-09-05", tone: "equipment", icon: "plus" },
+];
+
 function EventsPage({ plan, toast }: { plan: () => void; toast: (text: string) => void }) {
-  const [checks, setChecks] = useState([true, true, false, false]);
+  const [cardSteps, setCardSteps] = useState(initialPlanSteps);
+  const [steps, setSteps] = useState(initialPlanSteps);
+  const [saved, setSaved] = useState(186000);
+  const [budgetLines, setBudgetLines] = useState(templateBudget);
+  const [routeNotes, setRouteNotes] = useState(templateNotes);
+  const [stops, setStops] = useState(templateStops);
+  const [people, setPeople] = useState(templatePeople);
+  const [tripTitle, setTripTitle] = useState("Road trip по Исландии");
+  const [tripKicker, setTripKicker] = useState("ГЛАВНОЕ СОБЫТИЕ · СЕНТЯБРЬ");
+  const [tripSummary, setTripSummary] = useState("12–23 сентября · 4 участника · вылет из Лиссабона");
+  const [tripDuration, setTripDuration] = useState("12 дней");
+  const [planKind, setPlanKind] = useState<"template" | "fresh">("template");
+  const [cover, setCover] = useState<string | null>(null);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [savedTrip, setSavedTrip] = useState<{
+    title: string;
+    summary: string;
+    cover: string | null;
+    progress: number;
+    done: number;
+    total: number;
+    saved: number;
+    duration: string;
+    saving: boolean;
+  } | null>(null);
+  const [needsSaving, setNeedsSaving] = useState(true);
+  const [savingAsk, setSavingAsk] = useState(false);
+  const [contribution, setContribution] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
+  const [planReady, setPlanReady] = useState(false);
+  const [eventSeconds, setEventSeconds] = useState(() => {
+    const eventAt = new Date(2026, 8, 12, 9, 0, 0).getTime();
+    const demoNow = new Date(2026, 5, 16, 9, 24, 18).getTime();
+    return Math.max(0, Math.floor((eventAt - demoNow) / 1000));
+  });
+  const nextStep = useRef(13);
+  const kitSeq = useRef(1);
+  const daysLeft = Math.floor(eventSeconds / 86400);
+  const [links, setLinks] = useState(templateLinks);
+  const [contacts, setContacts] = useState(templateContacts);
+  const [places, setPlaces] = useState<PlanPlace[]>(templatePlaces);
+  const [files, setFiles] = useState<PlanFile[]>([]);
+  const [mapId, setMapId] = useState("reykjavik");
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [telegram, setTelegram] = useState<string | null>(null);
+  const [telegramDraft, setTelegramDraft] = useState("");
+  const [telegramOpen, setTelegramOpen] = useState(false);
+  const [linkDraft, setLinkDraft] = useState({ title: "", url: "", note: "" });
+  const [contactDraft, setContactDraft] = useState({ name: "", value: "", note: "" });
+  const [placeDraft, setPlaceDraft] = useState({ title: "", address: "", contact: "", note: "" });
+  const [linkForm, setLinkForm] = useState(false);
+  const [contactForm, setContactForm] = useState(false);
+  const [placeForm, setPlaceForm] = useState(false);
+  const mappedPlace = places.find((place) => place.id === mapId) ?? places[0];
+  const previewFile = files.find((file) => file.id === previewId) ?? null;
+  const doneCount = steps.filter((step) => step.done).length;
+  const prepProgress = steps.length ? Math.round((doneCount / steps.length) * 100) : 0;
+  const cardDone = cardSteps.filter((step) => step.done).length;
+  const cardProgress = Math.round((cardDone / cardSteps.length) * 100);
+  const budgetTotal = budgetLines.reduce((sum, line) => sum + (Number(line.amount) || 0), 0);
+  const nearestSteps = [...cardSteps]
+    .sort((a, b) => Number(a.done) - Number(b.done) || a.deadline.localeCompare(b.deadline))
+    .slice(0, 4);
+  const openTitles = steps.filter((step) => !step.done).map((step) => step.title);
+  const prepNote = steps.length === 0
+    ? "Добавьте шаги подготовки, сроки и материалы."
+    : openTitles.length
+      ? `Осталось закрыть: ${openTitles.slice(0, 3).join(", ")}.`
+      : "Все шаги подготовки закрыты.";
+
+  function patchStep(id: string, patch: Partial<PlanStep>) {
+    setSteps((list) => list.map((step) => (step.id === id ? { ...step, ...patch } : step)));
+  }
+
+  function openPlan(kind: "template" | "fresh") {
+    setFiles((list) => {
+      list.forEach((file) => URL.revokeObjectURL(file.url));
+      return [];
+    });
+    setPlanKind(kind);
+    setPreviewId(null);
+    setTelegram(null);
+    setTelegramDraft("");
+    setTelegramOpen(false);
+    setLinkForm(false);
+    setContactForm(false);
+    setPlaceForm(false);
+    setLinkDraft({ title: "", url: "", note: "" });
+    setContactDraft({ name: "", value: "", note: "" });
+    setPlaceDraft({ title: "", address: "", contact: "", note: "" });
+    setAiOpen(false);
+    setAiBusy(false);
+    setCover((current) => {
+      if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+      return null;
+    });
+    if (kind === "template") {
+      setNeedsSaving(true);
+      setSteps(initialPlanSteps);
+      setSaved(186000);
+      setBudgetLines(templateBudget);
+      setRouteNotes(templateNotes);
+      setStops(templateStops);
+      setPeople(templatePeople);
+      setLinks(templateLinks);
+      setContacts(templateContacts);
+      setPlaces(templatePlaces);
+      setMapId("reykjavik");
+      setTripTitle("Road trip по Исландии");
+      setTripKicker("ГЛАВНОЕ СОБЫТИЕ · СЕНТЯБРЬ");
+      setTripSummary("12–23 сентября · 4 участника · вылет из Лиссабона");
+      setTripDuration("12 дней");
+    } else {
+      setSteps([]);
+      setSaved(0);
+      setBudgetLines(templateBudget.map((line) => ({ ...line, amount: 0 })));
+      setRouteNotes([""]);
+      setStops([{ days: "", title: "" }]);
+      setPeople([""]);
+      setLinks([]);
+      setContacts([]);
+      setPlaces([]);
+      setMapId("");
+      setTripTitle("");
+      setTripKicker("НОВОЕ ПУТЕШЕСТВИЕ");
+      setTripSummary("");
+      setTripDuration("");
+    }
+    setCreateOpen(false);
+    setPlanReady(false);
+    setPlanOpen(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function useCover(next: string) {
+    setCover((current) => {
+      if (current?.startsWith("blob:")) URL.revokeObjectURL(current);
+      return next;
+    });
+    setAiOpen(false);
+  }
+
+  function saveTrip() {
+    if (!tripTitle.trim()) return;
+    setSavedTrip({
+      title: tripTitle.trim(),
+      summary: tripSummary.trim() || tripDuration.trim() || "Новое путешествие",
+      cover,
+      progress: prepProgress,
+      done: doneCount,
+      total: steps.length,
+      saved,
+      duration: tripDuration.trim(),
+      saving: needsSaving,
+    });
+    setCardSteps(steps);
+    setPlanOpen(false);
+    toast("Путешествие сохранено");
+  }
+  const createItems = [
+    ["sparkle", "Событие", "Встреча, дата или чек-лист"],
+    ["plane", "Путешествие", "Маршрут, даты и бюджет поездки"],
+    ["wallet", "Цель", "Накопление или результат"],
+  ] as const;
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setEventSeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!planOpen) return;
+    const timer = window.setTimeout(() => setPlanReady(true), 700);
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPlanOpen(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("keydown", close);
+    };
+  }, [planOpen]);
+
   return (
     <div className="section-page">
       <PageTitle
@@ -3012,42 +3338,110 @@ function EventsPage({ plan, toast }: { plan: () => void; toast: (text: string) =
         title="Цели и события"
         description="Превращайте большие планы в понятные шаги, сроки и бюджеты."
         action={
-          <button className="primary page-action" onClick={plan}>
-            Создать событие <Icon name="plus" size={17} />
-          </button>
+          <div className="planner-wrap">
+            <button
+              className={`primary page-action planner-button ${createOpen ? "open" : ""}`}
+              aria-expanded={createOpen}
+              aria-haspopup="menu"
+              onClick={() => setCreateOpen((open) => !open)}
+            >
+              Создать <Icon name="plus" size={17} />
+            </button>
+            {createOpen && (
+              <>
+                <button className="popover-dismiss" aria-label="Закрыть меню" onClick={() => setCreateOpen(false)} />
+                <div className="planner-pop create-pop" role="menu">
+                  {createItems.map(([icon, title, note]) => (
+                    <button
+                      key={title}
+                      role="menuitem"
+                      onClick={() => {
+                        if (title === "Путешествие") {
+                          setCreateOpen(false);
+                          setSavingAsk(true);
+                          return;
+                        }
+                        setCreateOpen(false);
+                        toast(title);
+                      }}
+                    >
+                      <span>
+                        <Icon name={icon} size={17} />
+                      </span>
+                      <strong>
+                        {title}
+                        <small>{note}</small>
+                      </strong>
+                      <Icon name="chevron" size={15} />
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         }
       />
       <article className="event-feature panel">
         <img
-          src="https://images.unsplash.com/photo-1500043357865-c6b8827edf10?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=1400"
-          alt="Побережье Исландии"
+          src={
+            savedTrip?.cover ||
+            "https://images.unsplash.com/photo-1500043357865-c6b8827edf10?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=1400"
+          }
+          alt={savedTrip?.title || "Побережье Исландии"}
         />
-        <div className="event-shade" />
+        <div className="event-shade">
+          <div className="event-clock">
+            <span>ДО СОБЫТИЯ</span>
+            <BookingCountdown seconds={eventSeconds} />
+          </div>
+        </div>
         <div className="event-copy">
-          <span className="overline">ГЛАВНОЕ СОБЫТИЕ · СЕНТЯБРЬ</span>
-          <h2>Road trip по Исландии</h2>
-          <p>12 дней · 4 участника · маршрут готов на 72%</p>
+          {savedTrip ? null : <span className="template-badge">Шаблон путешествия</span>}
+          <span className="overline">{savedTrip ? "ПУТЕШЕСТВИЕ" : "ГЛАВНОЕ СОБЫТИЕ · СЕНТЯБРЬ"}</span>
+          <h2>{savedTrip?.title || "Road trip по Исландии"}</h2>
+          <p>
+            {savedTrip
+              ? `${savedTrip.summary} · подготовка на ${savedTrip.progress}%`
+              : `12 дней · 4 участника · подготовка на ${cardProgress}%`}
+          </p>
           <div className="event-progress">
             <i>
-              <em />
+              <em style={{ width: `${savedTrip ? savedTrip.progress : cardProgress}%` }} />
             </i>
-            <span>72%</span>
+            <span>{savedTrip ? savedTrip.progress : cardProgress}%</span>
           </div>
         </div>
         <div className="event-stats">
           <div>
             <span>До события</span>
-            <strong>78 дней</strong>
+            <strong>{daysLeft} дней</strong>
           </div>
           <div>
-            <span>Накоплено</span>
-            <strong>186 000 ₽</strong>
+            <span>{savedTrip && !savedTrip.saving ? "Длительность" : "Накоплено"}</span>
+            <strong>
+              {savedTrip && !savedTrip.saving
+                ? savedTrip.duration || "—"
+                : formatMoney(savedTrip ? savedTrip.saved : 186000)}
+            </strong>
           </div>
           <div>
             <span>Чек-лист</span>
-            <strong>8 из 12</strong>
+            <strong>
+              {savedTrip ? `${savedTrip.done} из ${savedTrip.total}` : `${cardDone} из ${cardSteps.length}`}
+            </strong>
           </div>
-          <button className="glass-button" onClick={() => toast("План события открыт")}>
+          <button
+            className="glass-button"
+            onClick={() => {
+              if (savedTrip) {
+                setPlanKind("fresh");
+                setPlanReady(false);
+                setPlanOpen(true);
+                return;
+              }
+              openPlan("template");
+            }}
+          >
             Открыть план <Icon name="arrow" size={17} />
           </button>
         </div>
@@ -3059,28 +3453,27 @@ function EventsPage({ plan, toast }: { plan: () => void; toast: (text: string) =
               <span className="overline">БЛИЖАЙШИЕ ШАГИ</span>
               <h3>Чек-лист события</h3>
             </div>
-            <span className="soft-badge">{checks.filter(Boolean).length} / 4</span>
+            <span className="soft-badge">
+              {cardDone} / {cardSteps.length}
+            </span>
           </div>
           <div className="event-checklist">
-            {[
-              ["Забронировать автомобиль", "До 20 июня", "Транспорт"],
-              ["Согласовать маршрут", "До 24 июня", "Маршрут"],
-              ["Купить страховку", "До 15 августа", "Документы"],
-              ["Собрать список экипировки", "До 20 августа", "Подготовка"],
-            ].map(([title, date, tag], index) => (
+            {nearestSteps.map((step) => (
               <button
-                className={checks[index] ? "done" : ""}
-                key={title}
-                onClick={() => setChecks((v) => v.map((x, i) => (i === index ? !x : x)))}
+                className={step.done ? "done" : ""}
+                key={step.id}
+                onClick={() =>
+                  setCardSteps((list) =>
+                    list.map((item) => (item.id === step.id ? { ...item, done: !item.done } : item)),
+                  )
+                }
               >
-                <span className="task-check">
-                  {checks[index] && <Icon name="check" size={17} />}
-                </span>
+                <span className="task-check">{step.done && <Icon name="check" size={17} />}</span>
                 <div>
-                  <strong>{title}</strong>
-                  <small>{date}</small>
+                  <strong>{step.title}</strong>
+                  <small>До {prepLabel(step.deadline)}</small>
                 </div>
-                <span className="soft-badge">{tag}</span>
+                <span className="soft-badge">{step.done ? "Готово" : "В работе"}</span>
               </button>
             ))}
           </div>
@@ -3123,6 +3516,855 @@ function EventsPage({ plan, toast }: { plan: () => void; toast: (text: string) =
           </div>
         </article>
       </div>
+      {savingAsk && (
+        <div className="saving-ask" role="dialog" aria-modal="true" aria-labelledby="saving-ask-title">
+          <button className="popover-dismiss" aria-label="Закрыть вопрос" onClick={() => setSavingAsk(false)} />
+          <article>
+            <p className="eyebrow">ПЕРЕД СОЗДАНИЕМ</p>
+            <h2 id="saving-ask-title">Нужно копить на это путешествие?</h2>
+            <p>Если да, в плане можно вносить накопленную сумму. Бюджет поездки при этом остаётся отдельно.</p>
+            <div className="saving-ask-actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setNeedsSaving(true);
+                  setContribution("");
+                  setSavingAsk(false);
+                  openPlan("fresh");
+                }}
+              >
+                Да, копить
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNeedsSaving(false);
+                  setSavingAsk(false);
+                  openPlan("fresh");
+                }}
+              >
+                Нет
+              </button>
+            </div>
+          </article>
+        </div>
+      )}
+      {planOpen && (
+        <div className="plan-layer" role="dialog" aria-modal="true" aria-labelledby="plan-title">
+          <article className="plan-sheet">
+            <header className="plan-sheet-head">
+              <div>
+                <span className={`plan-kind ${planKind}`}>
+                  {planKind === "template" ? "Шаблон путешествия" : "Чистое путешествие"}
+                </span>
+                <span className="overline">{tripKicker}</span>
+                <input
+                  id="plan-title"
+                  className="plan-title-field"
+                  aria-label="Название путешествия"
+                  placeholder="Название путешествия"
+                  value={tripTitle}
+                  onChange={(event) => setTripTitle(event.target.value)}
+                />
+                <p className="plan-kind-note">
+                  {planKind === "template"
+                    ? "Пример заполненного плана. Новое путешествие открывается пустым."
+                    : "Заполните этот план: маршрут, бюджет, сроки, ссылки и файлы."}
+                </p>
+              </div>
+              <div className="plan-head-actions">
+                {planKind === "fresh" && (
+                  <button type="button" className="plan-save" disabled={!tripTitle.trim()} onClick={saveTrip}>
+                    Сохранить
+                  </button>
+                )}
+                <button className="icon-button" onClick={() => setPlanOpen(false)} aria-label="Закрыть план">
+                  <Icon name="close" />
+                </button>
+              </div>
+            </header>
+            {planReady ? (
+              <div className="plan-body">
+                <div className={`plan-hero ${planKind === "fresh" ? "fresh" : ""}`}>
+                  {planKind === "template" ? (
+                    <img
+                      src="https://images.unsplash.com/photo-1500043357865-c6b8827edf10?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixlib=rb-4.1.0&q=85&w=900"
+                      alt="Побережье Исландии"
+                    />
+                  ) : (
+                    <div className="plan-cover">
+                      {cover ? (
+                        <img src={cover} alt="Обложка путешествия" />
+                      ) : (
+                        <div className="plan-cover-empty">Обложка ещё не выбрана</div>
+                      )}
+                      <div className="plan-cover-actions">
+                        <label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (!file) return;
+                              useCover(URL.createObjectURL(file));
+                            }}
+                          />
+                          Загрузить
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiOpen(true);
+                            setAiBusy(true);
+                            window.setTimeout(() => setAiBusy(false), 700);
+                          }}
+                        >
+                          <Icon name="sparkle" size={14} /> Подобрать с ИИ
+                        </button>
+                      </div>
+                      {aiOpen && (
+                        <div className="plan-ai-picks" aria-live="polite">
+                          {aiBusy ? (
+                            <p>Астра подбирает обложку{tripTitle.trim() ? ` для «${tripTitle.trim()}»` : ""}</p>
+                          ) : (
+                            coverIdeas.map((idea) => (
+                              <button type="button" key={idea.title} onClick={() => useCover(idea.src)}>
+                                <img src={idea.src} alt="" />
+                                <span>{idea.title}</span>
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <div>
+                    <input
+                      className="plan-summary-field"
+                      aria-label="Коротко о поездке"
+                      placeholder="Даты, участники, откуда вылет"
+                      value={tripSummary}
+                      onChange={(event) => setTripSummary(event.target.value)}
+                    />
+                    <strong>Подготовка на {prepProgress}%</strong>
+                    <div className="plan-bar" aria-hidden="true">
+                      <i style={{ width: `${prepProgress}%` }} />
+                    </div>
+                    <span>{prepNote}</span>
+                  </div>
+                </div>
+                <div className="plan-metrics">
+                  <div>
+                    <span>До старта</span>
+                    <strong>{planKind === "template" ? `${daysLeft} дней` : "—"}</strong>
+                  </div>
+                  <div>
+                    <span>Длительность</span>
+                    <input
+                      aria-label="Длительность"
+                      placeholder="Сколько дней"
+                      value={tripDuration}
+                      onChange={(event) => setTripDuration(event.target.value)}
+                    />
+                  </div>
+                  {(planKind === "template" || needsSaving) && (
+                    <div>
+                      <span>Накоплено</span>
+                      <label>
+                        <input
+                          aria-label="Накоплено"
+                          type="number"
+                          min={0}
+                          value={saved}
+                          onChange={(event) => setSaved(Number(event.target.value) || 0)}
+                        />
+                        <small>из {formatMoney(budgetTotal)}</small>
+                      </label>
+                      {planKind === "fresh" && (
+                        <form
+                          className="plan-saving-add"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const amount = Number(contribution);
+                            if (!amount) return;
+                            setSaved((value) => value + amount);
+                            setContribution("");
+                          }}
+                        >
+                          <input
+                            aria-label="Сумма взноса"
+                            type="number"
+                            min={1}
+                            placeholder="Сумма"
+                            value={contribution}
+                            onChange={(event) => setContribution(event.target.value)}
+                          />
+                          <button type="submit">Внести</button>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                  <div>
+                    <span>Чек-лист</span>
+                    <strong>
+                      {doneCount} из {steps.length}
+                    </strong>
+                  </div>
+                </div>
+                <div className="plan-columns">
+                  <section>
+                    <span className="overline">МАРШРУТ</span>
+                    <h3>По дням</h3>
+                    <ol className="plan-route">
+                      {stops.map((stop, index) => (
+                        <li key={`${stop.title}-${index}`}>
+                          <input
+                            aria-label="Дни"
+                            placeholder="Дни"
+                            value={stop.days}
+                            onChange={(event) =>
+                              setStops((list) =>
+                                list.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, days: event.target.value } : item,
+                                ),
+                              )
+                            }
+                          />
+                          <div>
+                            <input
+                              aria-label="Точка маршрута"
+                              placeholder="Куда"
+                              value={stop.title}
+                              onChange={(event) =>
+                                setStops((list) =>
+                                  list.map((item, itemIndex) =>
+                                    itemIndex === index ? { ...item, title: event.target.value } : item,
+                                  ),
+                                )
+                              }
+                            />
+                            <input
+                              aria-label="Заметка маршрута"
+                              placeholder="Что здесь"
+                              value={routeNotes[index] ?? ""}
+                              onChange={(event) =>
+                                setRouteNotes((notes) =>
+                                  notes.map((note, noteIndex) =>
+                                    noteIndex === index ? event.target.value : note,
+                                  ),
+                                )
+                              }
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="plan-row-remove"
+                            aria-label="Удалить день маршрута"
+                            onClick={() => {
+                              setStops((list) => list.filter((_, itemIndex) => itemIndex !== index));
+                              setRouteNotes((notes) => notes.filter((_, noteIndex) => noteIndex !== index));
+                            }}
+                          >
+                            <Icon name="close" size={13} />
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                    <button
+                      type="button"
+                      className="plan-inline-add"
+                      onClick={() => {
+                        setStops((list) => [...list, { days: "", title: "" }]);
+                        setRouteNotes((notes) => [...notes, ""]);
+                      }}
+                    >
+                      <Icon name="plus" size={14} /> День
+                    </button>
+                  </section>
+                  <section>
+                    <span className="overline">БЮДЖЕТ ПОЕЗДКИ</span>
+                    <h3>{formatMoney(budgetTotal)}</h3>
+                    <ul className="plan-budget">
+                      {budgetLines.map((line, index) => (
+                        <li key={`${line.name}-${index}`}>
+                          <input
+                            aria-label="Название расхода"
+                            placeholder="Расход"
+                            value={line.name}
+                            onChange={(event) =>
+                              setBudgetLines((lines) =>
+                                lines.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, name: event.target.value } : item,
+                                ),
+                              )
+                            }
+                          />
+                          <input
+                            aria-label={`Сумма: ${line.name || "расход"}`}
+                            type="number"
+                            min={0}
+                            value={line.amount}
+                            onChange={(event) =>
+                              setBudgetLines((lines) =>
+                                lines.map((item, itemIndex) =>
+                                  itemIndex === index
+                                    ? { ...item, amount: Number(event.target.value) || 0 }
+                                    : item,
+                                ),
+                              )
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="plan-row-remove"
+                            aria-label="Удалить расход"
+                            onClick={() =>
+                              setBudgetLines((lines) => lines.filter((_, itemIndex) => itemIndex !== index))
+                            }
+                          >
+                            <Icon name="close" size={13} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      className="plan-inline-add"
+                      onClick={() => setBudgetLines((lines) => [...lines, { name: "", amount: 0 }])}
+                    >
+                      <Icon name="plus" size={14} /> Расход
+                    </button>
+                    <span className="overline">УЧАСТНИКИ</span>
+                    <ul className="plan-people">
+                      {people.map((person, index) => (
+                        <li key={index}>
+                          <input
+                            aria-label="Участник"
+                            placeholder="Имя и роль"
+                            value={person}
+                            onChange={(event) =>
+                              setPeople((list) =>
+                                list.map((item, itemIndex) => (itemIndex === index ? event.target.value : item)),
+                              )
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="plan-row-remove"
+                            aria-label="Удалить участника"
+                            onClick={() => setPeople((list) => list.filter((_, itemIndex) => itemIndex !== index))}
+                          >
+                            <Icon name="close" size={13} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <button type="button" className="plan-inline-add" onClick={() => setPeople((list) => [...list, ""])}>
+                      <Icon name="plus" size={14} /> Участник
+                    </button>
+                  </section>
+                </div>
+                <section className="plan-kit">
+                  <div className="plan-kit-grid">
+                    <section>
+                      <div className="plan-prep-head">
+                        <div>
+                          <span className="overline">МАТЕРИАЛЫ</span>
+                          <h3>Полезные ссылки</h3>
+                        </div>
+                        <button type="button" onClick={() => setLinkForm((open) => !open)}>
+                          <Icon name="plus" size={14} /> Ссылка
+                        </button>
+                      </div>
+                      {linkForm && (
+                        <form
+                          className="plan-composer"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            if (!linkDraft.title.trim() || !linkDraft.url.trim()) return;
+                            setLinks((list) => [
+                              ...list,
+                              { id: `link-${kitSeq.current++}`, ...linkDraft, title: linkDraft.title.trim(), url: linkDraft.url.trim(), note: linkDraft.note.trim() },
+                            ]);
+                            setLinkDraft({ title: "", url: "", note: "" });
+                            setLinkForm(false);
+                          }}
+                        >
+                          <input className="plan-field" placeholder="Название" value={linkDraft.title} onChange={(event) => setLinkDraft({ ...linkDraft, title: event.target.value })} />
+                          <input className="plan-field" placeholder="https://" value={linkDraft.url} onChange={(event) => setLinkDraft({ ...linkDraft, url: event.target.value })} />
+                          <input className="plan-field" placeholder="Комментарий" value={linkDraft.note} onChange={(event) => setLinkDraft({ ...linkDraft, note: event.target.value })} />
+                          <button type="submit">Добавить</button>
+                        </form>
+                      )}
+                      <ul className="plan-notes">
+                        {links.map((link) => (
+                          <li key={link.id}>
+                            <a href={link.url.startsWith("http") ? link.url : `https://${link.url}`} target="_blank" rel="noreferrer">
+                              <Icon name="link" size={14} />
+                              <strong>{link.title}</strong>
+                            </a>
+                            {link.note && <span>{link.note}</span>}
+                            <button type="button" aria-label={`Удалить ссылку ${link.title}`} onClick={() => setLinks((list) => list.filter((item) => item.id !== link.id))}>
+                              <Icon name="close" size={13} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                    <section>
+                      <div className="plan-prep-head">
+                        <div>
+                          <span className="overline">ЛЮДИ</span>
+                          <h3>Полезные контакты</h3>
+                        </div>
+                        <button type="button" onClick={() => setContactForm((open) => !open)}>
+                          <Icon name="plus" size={14} /> Контакт
+                        </button>
+                      </div>
+                      {contactForm && (
+                        <form
+                          className="plan-composer"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            if (!contactDraft.name.trim() || !contactDraft.value.trim()) return;
+                            setContacts((list) => [
+                              ...list,
+                              { id: `contact-${kitSeq.current++}`, name: contactDraft.name.trim(), value: contactDraft.value.trim(), note: contactDraft.note.trim() },
+                            ]);
+                            setContactDraft({ name: "", value: "", note: "" });
+                            setContactForm(false);
+                          }}
+                        >
+                          <input className="plan-field" placeholder="Имя" value={contactDraft.name} onChange={(event) => setContactDraft({ ...contactDraft, name: event.target.value })} />
+                          <input className="plan-field" placeholder="Телефон или почта" value={contactDraft.value} onChange={(event) => setContactDraft({ ...contactDraft, value: event.target.value })} />
+                          <input className="plan-field" placeholder="Комментарий" value={contactDraft.note} onChange={(event) => setContactDraft({ ...contactDraft, note: event.target.value })} />
+                          <button type="submit">Добавить</button>
+                        </form>
+                      )}
+                      <ul className="plan-notes">
+                        {contacts.map((contact) => (
+                          <li key={contact.id}>
+                            <div>
+                              <strong>{contact.name}</strong>
+                              <b>{contact.value}</b>
+                            </div>
+                            {contact.note && <span>{contact.note}</span>}
+                            <button type="button" aria-label={`Удалить контакт ${contact.name}`} onClick={() => setContacts((list) => list.filter((item) => item.id !== contact.id))}>
+                              <Icon name="close" size={13} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  </div>
+                  <section className="plan-places">
+                    <div className="plan-prep-head">
+                      <div>
+                        <span className="overline">МАРШРУТ</span>
+                        <h3>Точки на карте</h3>
+                      </div>
+                      <button type="button" onClick={() => setPlaceForm((open) => !open)}>
+                        <Icon name="plus" size={14} /> Точка
+                      </button>
+                    </div>
+                    {placeForm && (
+                      <form
+                        className="plan-composer"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          if (!placeDraft.title.trim() || !placeDraft.address.trim()) return;
+                          const id = `place-${kitSeq.current++}`;
+                          setPlaces((list) => [
+                            ...list,
+                            { id, title: placeDraft.title.trim(), address: placeDraft.address.trim(), contact: placeDraft.contact.trim(), note: placeDraft.note.trim(), lat: null, lng: null },
+                          ]);
+                          setMapId(id);
+                          setPlaceDraft({ title: "", address: "", contact: "", note: "" });
+                          setPlaceForm(false);
+                        }}
+                      >
+                        <input className="plan-field" placeholder="Название" value={placeDraft.title} onChange={(event) => setPlaceDraft({ ...placeDraft, title: event.target.value })} />
+                        <input className="plan-field" placeholder="Адрес" value={placeDraft.address} onChange={(event) => setPlaceDraft({ ...placeDraft, address: event.target.value })} />
+                        <input className="plan-field" placeholder="Контакт" value={placeDraft.contact} onChange={(event) => setPlaceDraft({ ...placeDraft, contact: event.target.value })} />
+                        <input className="plan-field" placeholder="Комментарий" value={placeDraft.note} onChange={(event) => setPlaceDraft({ ...placeDraft, note: event.target.value })} />
+                        <button type="submit">Добавить</button>
+                      </form>
+                    )}
+                    <div className="plan-map">
+                      <ul className="plan-notes">
+                        {places.map((place) => (
+                          <li
+                            key={place.id}
+                            className={place.id === mappedPlace?.id ? "active" : ""}
+                            onClick={() => setMapId(place.id)}
+                          >
+                            <div>
+                              <strong>{place.title}</strong>
+                              <b>{place.address}</b>
+                            </div>
+                            {place.contact && <span>{place.contact}</span>}
+                            {place.note && <span>{place.note}</span>}
+                            <button
+                              type="button"
+                              aria-label={`Удалить точку ${place.title}`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setPlaces((list) => list.filter((item) => item.id !== place.id));
+                                if (mapId === place.id) {
+                                  const rest = places.filter((item) => item.id !== place.id);
+                                  setMapId(rest[0]?.id ?? "");
+                                }
+                              }}
+                            >
+                              <Icon name="close" size={13} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="plan-map-frame">
+                        {mappedPlace && mapEmbed(mappedPlace) ? (
+                          <iframe key={mappedPlace.id} title={`Карта: ${mappedPlace.title}`} src={mapEmbed(mappedPlace)} />
+                        ) : (
+                          <div className="plan-map-empty">
+                            <p>
+                              {mappedPlace
+                                ? "Для этой точки нет координаты. Откройте адрес на карте."
+                                : "Добавьте точку, и она появится на карте."}
+                            </p>
+                            {mappedPlace && (
+                              <a href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(mappedPlace.address)}`} target="_blank" rel="noreferrer">
+                                Открыть адрес
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {mappedPlace && (
+                          <a href={mappedPlace.lat != null ? `https://www.openstreetmap.org/?mlat=${mappedPlace.lat}&mlon=${mappedPlace.lng}#map=12/${mappedPlace.lat}/${mappedPlace.lng}` : `https://www.openstreetmap.org/search?query=${encodeURIComponent(mappedPlace.address)}`} target="_blank" rel="noreferrer">
+                            На карте: {mappedPlace.title}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                  <section className="plan-files">
+                    <div className="plan-prep-head">
+                      <div>
+                        <span className="overline">БИЛЕТЫ И ДОКУМЕНТЫ</span>
+                        <h3>Файлы</h3>
+                      </div>
+                      {files.length > 0 && <span className="plan-file-count">{files.length}</span>}
+                    </div>
+                    <label
+                      className="plan-drop"
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        const picked = [...event.dataTransfer.files];
+                        if (!picked.length) return;
+                        setFiles((list) => [
+                          ...list,
+                          ...picked.map((file) => ({
+                            id: `file-${kitSeq.current++}`,
+                            name: file.name,
+                            size: file.size,
+                            kind: file.type || "application/octet-stream",
+                            url: URL.createObjectURL(file),
+                          })),
+                        ]);
+                      }}
+                    >
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                        onChange={(event) => {
+                          const picked = [...(event.target.files ?? [])];
+                          setFiles((list) => [
+                            ...list,
+                            ...picked.map((file) => ({
+                              id: `file-${kitSeq.current++}`,
+                              name: file.name,
+                              size: file.size,
+                              kind: file.type || "application/octet-stream",
+                              url: URL.createObjectURL(file),
+                            })),
+                          ]);
+                          event.target.value = "";
+                        }}
+                      />
+                      <span>
+                        <Icon name="file" size={18} />
+                      </span>
+                      <strong>Билеты, ваучеры, страховка</strong>
+                      <small>Перетащите сюда или выберите файлы · PDF, фото, Word, Excel</small>
+                    </label>
+                    {files.length > 0 && (
+                      <ul className="plan-file-list">
+                        {files.map((file) => {
+                          const ext = file.name.split(".").pop()?.toUpperCase() || "FILE";
+                          return (
+                            <li key={file.id} className={file.id === previewId ? "open" : ""}>
+                              <button type="button" onClick={() => setPreviewId(file.id === previewId ? null : file.id)}>
+                                <i>{ext.slice(0, 4)}</i>
+                                <span>
+                                  <strong>{file.name}</strong>
+                                  <small>{fileSize(file.size)}</small>
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Удалить файл ${file.name}`}
+                                onClick={() => {
+                                  URL.revokeObjectURL(file.url);
+                                  setFiles((list) => list.filter((item) => item.id !== file.id));
+                                  if (previewId === file.id) setPreviewId(null);
+                                }}
+                              >
+                                <Icon name="close" size={13} />
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                    {previewFile && (
+                      <div className="plan-file-view">
+                        {previewFile.kind.startsWith("image/") ? (
+                          <img src={previewFile.url} alt={previewFile.name} />
+                        ) : previewFile.kind === "application/pdf" ? (
+                          <iframe title={previewFile.name} src={previewFile.url} />
+                        ) : (
+                          <a href={previewFile.url} download={previewFile.name}>
+                            Скачать {previewFile.name}
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </section>
+                  <section className="plan-telegram">
+                    <div className="plan-prep-head">
+                      <div>
+                        <span className="overline">ЧАТ МЕРОПРИЯТИЯ</span>
+                        <h3>Telegram</h3>
+                      </div>
+                      {telegram ? (
+                        <button type="button" onClick={() => setTelegram(null)}>
+                          Отключить
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => setTelegramOpen((open) => !open)}>
+                          <Icon name="link" size={14} /> Подключить чат
+                        </button>
+                      )}
+                    </div>
+                    {!telegram && telegramOpen && (
+                      <form
+                        className="plan-composer"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          const value = telegramDraft.trim().replace(/^@/, "");
+                          if (!value) return;
+                          setTelegram(value);
+                          setTelegramDraft("");
+                          setTelegramOpen(false);
+                        }}
+                      >
+                        <input className="plan-field" placeholder="t.me/iceland_trip или @iceland_trip" value={telegramDraft} onChange={(event) => setTelegramDraft(event.target.value)} />
+                        <button type="submit">Подключить</button>
+                      </form>
+                    )}
+                    {telegram && (
+                      <div className="plan-chat">
+                        <header>
+                          <strong>{telegram.replace(/^https?:\/\/t\.me\//, "")}</strong>
+                          <span>Последние сообщения</span>
+                        </header>
+                        <ul>
+                          {tripChat.map((message) => (
+                            <li key={message.time}>
+                              <b>
+                                {message.author}
+                                <small>{message.time}</small>
+                              </b>
+                              <p>{message.text}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </section>
+                </section>
+                <section className="plan-prep">
+                  <div className="plan-prep-head">
+                    <div>
+                      <span className="overline">ПОДГОТОВКА</span>
+                      <h3>Общий прогресс</h3>
+                    </div>
+                    <strong>{prepProgress}%</strong>
+                  </div>
+                  <div className="plan-bar" role="progressbar" aria-valuenow={prepProgress} aria-valuemin={0} aria-valuemax={100}>
+                    <i style={{ width: `${prepProgress}%` }} />
+                  </div>
+                  <span>
+                    {doneCount} из {steps.length} шагов закрыто · 16 июня — 14 сентября
+                  </span>
+                </section>
+                <section className="plan-checks">
+                  <div className="plan-prep-head">
+                    <h3>Чек-лист</h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = `step-${nextStep.current++}`;
+                        setSteps((list) => [
+                          ...list,
+                          {
+                            id,
+                            title: "Новый шаг",
+                            done: false,
+                            start: "2026-06-16",
+                            deadline: "2026-09-01",
+                            tone: "planned",
+                            icon: "check",
+                          },
+                        ]);
+                      }}
+                    >
+                      <Icon name="plus" size={14} /> Шаг
+                    </button>
+                  </div>
+                  <div className="plan-check-list">
+                    {steps.map((step) => (
+                      <div className={step.done ? "plan-check-row done" : "plan-check-row"} key={step.id}>
+                        <button
+                          type="button"
+                          aria-label={step.done ? `Вернуть: ${step.title}` : `Закрыть: ${step.title}`}
+                          aria-pressed={step.done}
+                          onClick={() => patchStep(step.id, { done: !step.done })}
+                        >
+                          {step.done ? <Icon name="check" size={12} /> : null}
+                        </button>
+                        <input
+                          aria-label="Название шага"
+                          value={step.title}
+                          onChange={(event) => patchStep(step.id, { title: event.target.value })}
+                        />
+                        <input
+                          id={`plan-deadline-${step.id}`}
+                          aria-label={`Дедлайн: ${step.title}`}
+                          type="date"
+                          value={step.deadline}
+                          onChange={(event) => {
+                            const deadline = event.target.value;
+                            if (!deadline) return;
+                            patchStep(step.id, {
+                              deadline,
+                              start: deadline < step.start ? deadline : step.start,
+                            });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <section className="plan-gantt-block">
+                  <div className="plan-prep-head">
+                    <div>
+                      <span className="overline">СРОКИ</span>
+                      <h3>Диаграмма подготовки</h3>
+                    </div>
+                  </div>
+                  <div className="scheduler-scroll">
+                    <div className="gantt-calendar plan-gantt">
+                      <div className="gantt-corner">
+                        <span>Шаг подготовки</span>
+                      </div>
+                      {prepWeekDates.map((date, index) => (
+                        <div className={`gantt-day ${index === 0 ? "today" : ""}`} key={date.toISOString()}>
+                          <span>{prepMonths[date.getMonth()]}</span>
+                          <strong>{date.getDate()}</strong>
+                        </div>
+                      ))}
+                      {steps.map((step) => {
+                        const bar = prepBar(step);
+                        return (
+                          <div className="gantt-row" key={step.id}>
+                            <button
+                              className="gantt-label"
+                              onClick={() => patchStep(step.id, { done: !step.done })}
+                            >
+                              <span>
+                                <Icon name={step.icon} size={15} />
+                              </span>
+                              <div>
+                                <strong className={step.done ? "struck" : ""}>{step.title}</strong>
+                                <small>до {prepLabel(step.deadline)}</small>
+                              </div>
+                            </button>
+                            <div className="gantt-track">
+                              <button
+                                className={`gantt-bar ${step.tone} ${step.done ? "done" : ""}`}
+                                style={{ gridColumn: `${bar.column} / span ${bar.span}` }}
+                                onClick={() => {
+                                  const field = document.getElementById(`plan-deadline-${step.id}`);
+                                  if (!(field instanceof HTMLInputElement)) return;
+                                  field.scrollIntoView({ block: "center", behavior: "smooth" });
+                                  field.focus();
+                                  try {
+                                    field.showPicker?.();
+                                  } catch {
+                                    /* календарь браузера может быть уже открыт */
+                                  }
+                                }}
+                              >
+                                <span>{step.title}</span>
+                                {bar.span > 1 && <small>{bar.span} нед.</small>}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="scheduler-legend">
+                    <span>
+                      <i className="flight" />
+                      Перелёт
+                    </span>
+                    <span>
+                      <i className="stay" />
+                      Жильё
+                    </span>
+                    <span>
+                      <i className="transport" />
+                      Транспорт
+                    </span>
+                    <span>
+                      <i className="work" />
+                      Документы
+                    </span>
+                    <span>
+                      <i className="equipment" />
+                      Снаряжение
+                    </span>
+                    <span>
+                      <i className="planned" />
+                      В плане
+                    </span>
+                  </div>
+                </section>
+              </div>
+            ) : (
+              <div className="plan-loader" aria-live="polite">
+                <i />
+                <span>Загружаем план</span>
+              </div>
+            )}
+          </article>
+        </div>
+      )}
     </div>
   );
 }
@@ -4702,7 +5944,7 @@ function AstraChat({
 }
 
 export default function App() {
-  const [active, setActive] = useState("Бюджет");
+  const [active, setActive] = useState("Цели и события");
   const [modal, setModal] = useState<PlanKind | null>(null);
   const [notice, setNotice] = useState(false);
   const [planner, setPlanner] = useState(false);
